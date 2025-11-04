@@ -1,0 +1,27 @@
+# CpGPT Web Application Dependencies
+
+# Web Framework
+# Updated for Python 3.13 and CpGPT compatibility
+fastapi>=0.112.0,<0.115  # CpGPT requires >=0.112.0,<0.115
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# PDF Generation (choose one)
+weasyprint==60.1  # Recommended for better Chinese support
+# pdfkit==1.0.0  # Alternative (requires wkhtmltopdf installation)
+
+# Visualization
+matplotlib==3.8.2
+seaborn==0.13.0
+
+# Data Processing
+# Updated for Python 3.13 compatibility on macOS
+pandas>=2.2.0  # Python 3.13 support with prebuilt wheels
+numpy>=1.26.0  # Compatible with Python 3.13
+pyarrow>=14.0.0  # Arrow format support
+
+# Core CpGPT dependencies (should already be installed)
+# torch>=2.0.0
+# lightning>=2.0.0
+# transformers>=4.30.0
+
