@@ -47,7 +47,7 @@ sns.set_palette("husl")
 # 路径配置
 DEPENDENCIES_DIR = "./dependencies"
 DATA_DIR = "./data"
-RAW_935K_DATA_PATH = "./data/935k_samples.csv"  # 您的935k数据路径（支持CSV或Arrow格式）
+RAW_935K_DATA_PATH = "./data/Sample-251107-Rico-1.csv"  # 您的935k数据路径（支持CSV或Arrow格式）
 PROCESSED_DIR = "./data/935k_processed"
 RESULTS_DIR = "./results/935k_predictions"
 FIGURES_DIR = "./results/935k_predictions/figures"  # 图表保存目录

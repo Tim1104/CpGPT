@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JavaScript Test</title>
+</head>
+<body>
+    <h1>JavaScript Test Page</h1>
+    <input type="file" id="testFileInput">
+    <div id="output"></div>
+    
+    <script>
+        document.getElementById('testFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('output').innerHTML = 
+                    'File selected: ' + file.name + '<br>' +
+                    'Size: ' + file.size + ' bytes<br>' +
+                    'Type: ' + file.type;
+                console.log('File selected:', file);
+            }
+        });
+        console.log('Test page loaded successfully');
+    </script>
+</body>
+</html>
+

@@ -1,27 +1,47 @@
 # CpGPT Web Application Dependencies
+# Optimized for Python 3.13 on macOS (Apple Silicon)
 
-# Web Framework
-# Updated for Python 3.13 and CpGPT compatibility
+# ============================================================================
+# Web Framework (Required)
+# ============================================================================
 fastapi>=0.112.0,<0.115  # CpGPT requires >=0.112.0,<0.115
 uvicorn>=0.24.0
 python-multipart>=0.0.6
 
-# PDF Generation (choose one)
-weasyprint==60.1  # Recommended for better Chinese support
-# pdfkit==1.0.0  # Alternative (requires wkhtmltopdf installation)
+# ============================================================================
+# Visualization (Required)
+# ============================================================================
+matplotlib>=3.8.0
+seaborn>=0.13.0
 
-# Visualization
-matplotlib==3.8.2
-seaborn==0.13.0
-
-# Data Processing
-# Updated for Python 3.13 compatibility on macOS
+# ============================================================================
+# Data Processing (Required)
+# ============================================================================
+# These should already be installed with CpGPT, but listed for completeness
 pandas>=2.2.0  # Python 3.13 support with prebuilt wheels
 numpy>=1.26.0  # Compatible with Python 3.13
-pyarrow>=14.0.0  # Arrow format support
+scikit-learn>=1.0.0  # Required by CpGPT
 
-# Core CpGPT dependencies (should already be installed)
-# torch>=2.0.0
-# lightning>=2.0.0
-# transformers>=4.30.0
+# ============================================================================
+# Optional Dependencies
+# ============================================================================
+
+# Arrow format support (OPTIONAL - only if you need .arrow/.feather files)
+# Uncomment the line below if needed:
+# pyarrow>=14.0.0
+
+# PDF Generation (OPTIONAL - requires system libraries)
+# To enable PDF export, first install system dependencies:
+#   brew install pango cairo gdk-pixbuf libffi glib
+# Then uncomment the line below:
+# weasyprint>=60.0
+
+# ============================================================================
+# Core CpGPT Dependencies
+# ============================================================================
+# These should already be installed when you installed CpGPT:
+# - torch>=2.0.0
+# - lightning>=2.0.0
+# - transformers>=4.30.0
+# - cpgpt>=0.0.7
 

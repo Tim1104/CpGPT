@@ -235,3 +235,4 @@ pyaging_data/
 Makefile
 .DS_Store
 .coveragerc
+dependencies/

@@ -31,15 +31,21 @@ from cpgpt.infer.cpgpt_inferencer import CpGPTInferencer
 from cpgpt.trainer.cpgpt_trainer import CpGPTTrainer
 
 # GPU工具模块
-from webapp.gpu_utils import initialize_device, get_current_device, get_optimal_precision
+try:
+    from webapp.gpu_utils import initialize_device, get_current_device, get_optimal_precision
+except ModuleNotFoundError:
+    # 当从webapp目录运行时，使用相对导入
+    from gpu_utils import initialize_device, get_current_device, get_optimal_precision
 
 # ============================================================================
 # 日志配置
 # ============================================================================
 
-# 创建日志目录
-LOG_DIR = Path("./webapp/logs")
-LOG_DIR.mkdir(parents=True, exist_ok=True)
+# 创建日志目录（在导入后定义WEBAPP_DIR之前需要临时处理）
+# 这部分会在后面重新定义，这里先用相对路径
+_temp_log_dir = Path(__file__).parent / "logs"
+_temp_log_dir.mkdir(parents=True, exist_ok=True)
+LOG_DIR = _temp_log_dir
 
 # 配置日志
 logging.basicConfig(
@@ -57,10 +63,14 @@ logger = logging.getLogger("cpgpt_web")
 # 配置
 # ============================================================================
 
-DEPENDENCIES_DIR = "./dependencies"
-UPLOAD_DIR = "./webapp/uploads"
-RESULTS_DIR = "./webapp/results"
-STATIC_DIR = "./webapp/static"
+# 获取当前文件所在目录（webapp目录）
+WEBAPP_DIR = Path(__file__).parent.absolute()
+PROJECT_ROOT = WEBAPP_DIR.parent
+
+DEPENDENCIES_DIR = str(PROJECT_ROOT / "dependencies")
+UPLOAD_DIR = str(WEBAPP_DIR / "uploads")
+RESULTS_DIR = str(WEBAPP_DIR / "results")
+STATIC_DIR = str(WEBAPP_DIR / "static")
 RANDOM_SEED = 42
 MAX_INPUT_LENGTH = 30000
 
@@ -753,7 +763,10 @@ async def download_pdf(task_id: str):
     try:
         # 生成PDF（可选功能）
         try:
-            from webapp.pdf_generator import generate_pdf_report
+            try:
+                from webapp.pdf_generator import generate_pdf_report
+            except ModuleNotFoundError:
+                from pdf_generator import generate_pdf_report
             pdf_available = True
         except ImportError as e:
             logger.warning(f"PDF generation not available: {e}")
@@ -831,7 +844,10 @@ async def health_check():
     # 检查PDF功能是否可用
     pdf_available = False
     try:
-        from webapp.pdf_generator import generate_pdf_report
+        try:
+            from webapp.pdf_generator import generate_pdf_report
+        except ModuleNotFoundError:
+            from pdf_generator import generate_pdf_report
         pdf_available = True
     except ImportError:
         pass
