@@ -18,6 +18,7 @@ This script demonstrates how to perform zero-shot inference on 935k methylation 
 """
 
 import json
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -45,7 +46,9 @@ sns.set_palette("husl")
 # ============================================================================
 
 # 路径配置
-DEPENDENCIES_DIR = "./dependencies"
+DEPENDENCIES_ROOT = "./dependencies"  # 依赖根目录（用于inferencer）
+DEPENDENCIES_DIR = "./dependencies/human"  # DNA嵌入和基因组数据在human子目录下
+MODEL_DIR = "./dependencies/model"  # 模型配置和权重在model子目录下
 DATA_DIR = "./data"
 RAW_935K_DATA_PATH = "./data/Sample-251107-Rico-1.csv"  # 您的935k数据路径（支持CSV或Arrow格式）
 PROCESSED_DIR = "./data/935k_processed"
@@ -378,8 +381,8 @@ try:
 except Exception:
     pass
 
-# 初始化inferencer
-inferencer = CpGPTInferencer(dependencies_dir=DEPENDENCIES_DIR, data_dir=DATA_DIR)
+# 初始化inferencer（使用根目录）
+inferencer = CpGPTInferencer(dependencies_dir=DEPENDENCIES_ROOT, data_dir=DATA_DIR)
 
 # ============================================================================
 # 步骤2: 下载依赖和模型（首次运行需要）
@@ -461,7 +464,7 @@ embedder.parse_dna_embeddings(
     dna_llm="nucleotide-transformer-v2-500m-multi-species",
     dna_context_len=2001,
     batch_size=8,  # 根据GPU内存调整
-    num_workers=4,
+    num_workers=0,  # 修复: macOS + Python 3.13 多进程序列化问题
 )
 
 print("数据预处理完成！")
@@ -476,9 +479,9 @@ print("=" * 80)
 
 # 加载年龄预测模型
 MODEL_NAME = "age_cot"
-MODEL_CONFIG_PATH = f"{DEPENDENCIES_DIR}/model/configs/{MODEL_NAME}.yaml"
-MODEL_CHECKPOINT_PATH = f"{DEPENDENCIES_DIR}/model/weights/{MODEL_NAME}.ckpt"
-MODEL_VOCAB_PATH = f"{DEPENDENCIES_DIR}/model/vocabs/{MODEL_NAME}.json"
+MODEL_CONFIG_PATH = f"{MODEL_DIR}/config/{MODEL_NAME}.yaml"
+MODEL_CHECKPOINT_PATH = f"{MODEL_DIR}/weights/{MODEL_NAME}.ckpt"
+MODEL_VOCAB_PATH = f"{MODEL_DIR}/vocab/{MODEL_NAME}.json"
 
 print(f"加载模型配置: {MODEL_CONFIG_PATH}")
 config_age = inferencer.load_cpgpt_config(MODEL_CONFIG_PATH)
@@ -566,9 +569,9 @@ print("=" * 80)
 
 # 加载癌症预测模型
 MODEL_NAME = "cancer"
-MODEL_CONFIG_PATH = f"{DEPENDENCIES_DIR}/model/configs/{MODEL_NAME}.yaml"
-MODEL_CHECKPOINT_PATH = f"{DEPENDENCIES_DIR}/model/weights/{MODEL_NAME}.ckpt"
-MODEL_VOCAB_PATH = f"{DEPENDENCIES_DIR}/model/vocabs/{MODEL_NAME}.json"
+MODEL_CONFIG_PATH = f"{MODEL_DIR}/config/{MODEL_NAME}.yaml"
+MODEL_CHECKPOINT_PATH = f"{MODEL_DIR}/weights/{MODEL_NAME}.ckpt"
+MODEL_VOCAB_PATH = f"{MODEL_DIR}/vocab/{MODEL_NAME}.json"
 
 print(f"加载模型配置: {MODEL_CONFIG_PATH}")
 config_cancer = inferencer.load_cpgpt_config(MODEL_CONFIG_PATH)

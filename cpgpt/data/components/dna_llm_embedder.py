@@ -507,7 +507,7 @@ class DNALLMEmbedder:
                 shuffle=False,
                 collate_fn=collate_fn,
                 pin_memory=True,
-                prefetch_factor=2,
+                prefetch_factor=2 if num_workers > 0 else None,
                 persistent_workers=num_workers > 0,
             )
 
