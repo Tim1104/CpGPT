@@ -17,7 +17,9 @@ This script demonstrates how to perform zero-shot inference on 935k methylation 
 5. Output detailed analysis reports
 """
 
+import gc
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -27,6 +29,10 @@ import pandas as pd
 import seaborn as sns
 import torch
 from lightning import seed_everything
+
+# 内存优化：禁用 MPS 回退到 CPU（如果需要）
+# 取消下面的注释可以完全禁用 MPS，强制使用 CPU
+# os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 from cpgpt.data.components.cpgpt_datasaver import CpGPTDataSaver
 from cpgpt.data.components.dna_llm_embedder import DNALLMEmbedder
@@ -58,7 +64,8 @@ REPORT_PATH = "./results/935k_predictions/analysis_report.html"  # 分析报告�
 
 # 模型配置
 RANDOM_SEED = 42
-MAX_INPUT_LENGTH = 30000  # 935k可能需要更大的值
+MAX_INPUT_LENGTH = 15000  # 减小以适应内存限制（从30000降低）
+USE_CPU = True  # 设置为True使用CPU（稳定），False使用MPS GPU（快但可能内存溢出）
 
 # 创建结果目录
 Path(RESULTS_DIR).mkdir(parents=True, exist_ok=True)
@@ -124,15 +131,30 @@ def create_cancer_distribution_plot(cancer_results, save_path):
 
     # 预测结果饼图
     cancer_counts = cancer_results["cancer_prediction"].value_counts()
-    colors = ["lightgreen", "lightcoral"]
-    labels = ["正常", "癌症"]
-    explode = (0.05, 0.05)
+
+    # 确保包含所有类别（即使计数为0）
+    all_labels = {0: "正常", 1: "癌症"}
+    all_colors = {0: "lightgreen", 1: "lightcoral"}
+
+    # 构建完整的数据（包括0计数的类别）
+    plot_data = []
+    plot_labels = []
+    plot_colors = []
+    plot_explode = []
+
+    for category in [0, 1]:
+        count = cancer_counts.get(category, 0)
+        plot_data.append(count)
+        plot_labels.append(all_labels[category])
+        plot_colors.append(all_colors[category])
+        plot_explode.append(0.05)
+
     axes[1].pie(
-        cancer_counts,
-        labels=labels,
+        plot_data,
+        labels=plot_labels,
         autopct="%1.1f%%",
-        colors=colors,
-        explode=explode,
+        colors=plot_colors,
+        explode=plot_explode,
         startangle=90,
         textprops={"fontsize": 12},
     )
@@ -142,16 +164,35 @@ def create_cancer_distribution_plot(cancer_results, save_path):
     normal_probs = cancer_results[cancer_results["cancer_prediction"] == 0]["cancer_probability"]
     cancer_probs = cancer_results[cancer_results["cancer_prediction"] == 1]["cancer_probability"]
 
-    box_data = [normal_probs, cancer_probs]
-    box = axes[2].boxplot(
-        box_data,
-        labels=["预测正常", "预测癌症"],
-        patch_artist=True,
-        boxprops=dict(alpha=0.7),
-        medianprops=dict(color="red", linewidth=2),
-    )
-    box["boxes"][0].set_facecolor("lightgreen")
-    box["boxes"][1].set_facecolor("lightcoral")
+    # 只绘制有数据的类别
+    box_data = []
+    box_labels = []
+    box_colors = []
+
+    if len(normal_probs) > 0:
+        box_data.append(normal_probs)
+        box_labels.append("预测正常")
+        box_colors.append("lightgreen")
+
+    if len(cancer_probs) > 0:
+        box_data.append(cancer_probs)
+        box_labels.append("预测癌症")
+        box_colors.append("lightcoral")
+
+    if len(box_data) > 0:
+        box = axes[2].boxplot(
+            box_data,
+            labels=box_labels,
+            patch_artist=True,
+            boxprops=dict(alpha=0.7),
+            medianprops=dict(color="red", linewidth=2),
+        )
+        # 设置颜色
+        for i, color in enumerate(box_colors):
+            box["boxes"][i].set_facecolor(color)
+    else:
+        axes[2].text(0.5, 0.5, "无数据", ha="center", va="center", fontsize=14)
+
     axes[2].axhline(0.5, color="red", linestyle="--", linewidth=1.5, alpha=0.5, label="阈值")
     axes[2].set_ylabel("癌症概率", fontsize=12)
     axes[2].set_title("概率分布（按分类）", fontsize=14, fontweight="bold")
@@ -373,6 +414,17 @@ print("=" * 80)
 print("步骤1: 环境设置")
 print("=" * 80)
 
+# 检测可用设备
+print("\n🖥️ 设备检测:")
+print(f"  - CUDA 可用: {torch.cuda.is_available()}")
+print(f"  - MPS 可用: {torch.backends.mps.is_available()}")
+print(f"  - CPU 核心数: {os.cpu_count()}")
+if USE_CPU:
+    print(f"  ✓ 配置使用: CPU (稳定模式)")
+else:
+    print(f"  ✓ 配置使用: MPS GPU (高性能模式)")
+    print(f"  ⚠️ 注意: 如果遇到内存溢出，请设置 USE_CPU=True")
+
 # 设置随机种子
 seed_everything(RANDOM_SEED, workers=True)
 try:
@@ -541,7 +593,12 @@ datamodule_age = CpGPTDataModule(
 
 # 创建训练器并进行预测
 print("执行年龄预测...")
-trainer = CpGPTTrainer(precision="16-mixed")  # 重要：必须使用混合精度
+if USE_CPU:
+    print("⚙️ 使用 CPU 进行推理（稳定但较慢）")
+    trainer = CpGPTTrainer(accelerator="cpu", precision="32")  # CPU 使用 float32
+else:
+    print("⚙️ 使用 MPS GPU 进行推理（快但可能内存溢出）")
+    trainer = CpGPTTrainer(precision="16-mixed")  # GPU 使用混合精度
 
 age_predictions = trainer.predict(
     model=model_age,
@@ -558,6 +615,18 @@ age_results_path = f"{RESULTS_DIR}/age_predictions.csv"
 age_results.to_csv(age_results_path, index=False)
 print(f"年龄预测结果已保存到: {age_results_path}")
 print(age_results.head())
+
+# 释放年龄模型内存
+print("\n释放年龄模型内存...")
+del model_age
+del datamodule_age
+del age_predictions
+if torch.backends.mps.is_available():
+    torch.mps.empty_cache()
+elif torch.cuda.is_available():
+    torch.cuda.empty_cache()
+gc.collect()
+print("内存已释放")
 
 # ============================================================================
 # 步骤5: 癌症预测（零样本）
@@ -637,6 +706,114 @@ cancer_results.to_csv(cancer_results_path, index=False)
 print(f"癌症预测结果已保存到: {cancer_results_path}")
 print(cancer_results.head())
 
+# 释放癌症模型内存
+print("\n释放癌症模型内存...")
+del model_cancer
+del datamodule_cancer
+del cancer_predictions
+if torch.backends.mps.is_available():
+    torch.mps.empty_cache()
+elif torch.cuda.is_available():
+    torch.cuda.empty_cache()
+gc.collect()
+print("内存已释放")
+
+# ============================================================================
+# 步骤5.5: 表观遗传时钟预测（零样本）
+# ============================================================================
+
+print("\n" + "=" * 80)
+print("步骤5.5: 表观遗传时钟预测（零样本推理）")
+print("=" * 80)
+
+# 加载表观遗传时钟模型
+MODEL_NAME = "clock_proxies"
+MODEL_CONFIG_PATH = f"{MODEL_DIR}/config/{MODEL_NAME}.yaml"
+MODEL_CHECKPOINT_PATH = f"{MODEL_DIR}/weights/{MODEL_NAME}.ckpt"
+MODEL_VOCAB_PATH = f"{MODEL_DIR}/vocab/{MODEL_NAME}.json"
+
+print(f"加载模型配置: {MODEL_CONFIG_PATH}")
+config_clocks = inferencer.load_cpgpt_config(MODEL_CONFIG_PATH)
+
+print(f"加载模型权重: {MODEL_CHECKPOINT_PATH}")
+model_clocks = inferencer.load_cpgpt_model(
+    config_clocks, model_ckpt_path=MODEL_CHECKPOINT_PATH, strict_load=True
+)
+
+# 过滤特征
+print("过滤特征以匹配表观遗传时钟模型词汇表...")
+vocab_clocks = json.load(open(MODEL_VOCAB_PATH, "r"))
+available_features_clocks = [col for col in df_935k.columns if col in vocab_clocks["input"]]
+print(f"935k数据中有 {len(available_features_clocks)} 个特征在时钟模型词汇表中")
+
+df_filtered_clocks = df_935k[available_features_clocks]
+filtered_path_clocks = f"{DATA_DIR}/935k_filtered_clocks.arrow"
+df_filtered_clocks.to_feather(filtered_path_clocks)
+
+# 重新处理过滤后的数据
+datasaver_clocks = CpGPTDataSaver(
+    data_paths=filtered_path_clocks, processed_dir=f"{PROCESSED_DIR}_clocks", metadata_cols=None
+)
+datasaver_clocks.process_files(prober=prober, embedder=embedder)
+
+# 创建数据模块
+datamodule_clocks = CpGPTDataModule(
+    predict_dir=f"{PROCESSED_DIR}_clocks",
+    dependencies_dir=DEPENDENCIES_DIR,
+    batch_size=1,
+    num_workers=0,
+    max_length=MAX_INPUT_LENGTH,
+    dna_llm=config_clocks.data.dna_llm,
+    dna_context_len=config_clocks.data.dna_context_len,
+    sorting_strategy=config_clocks.data.sorting_strategy,
+    pin_memory=False,
+)
+
+# 执行表观遗传时钟预测
+print("执行表观遗传时钟预测...")
+clocks_predictions = trainer.predict(
+    model=model_clocks,
+    datamodule=datamodule_clocks,
+    predict_mode="forward",
+    return_keys=["pred_conditions"],
+)
+
+# 保存表观遗传时钟预测结果
+# clock_proxies模型预测5个时钟：Horvath, Hannum, PhenoAge, GrimAge, DunedinPACE
+clock_names = ["Horvath", "Hannum", "PhenoAge", "GrimAge", "DunedinPACE"]
+clocks_data = {"sample_id": sample_ids}
+
+# 检查预测结果的维度
+pred_clocks = clocks_predictions["pred_conditions"]
+print(f"时钟预测结果形状: {pred_clocks.shape}")
+
+# 如果是多维输出，每一列对应一个时钟
+if len(pred_clocks.shape) > 1 and pred_clocks.shape[1] >= len(clock_names):
+    for i, clock_name in enumerate(clock_names):
+        clocks_data[clock_name] = pred_clocks[:, i]
+else:
+    # 如果只有一维输出，可能需要调整
+    print("⚠️ 警告: 时钟预测输出维度不符合预期")
+    clocks_data["clock_prediction"] = pred_clocks.flatten()
+
+clocks_results = pd.DataFrame(clocks_data)
+clocks_results_path = f"{RESULTS_DIR}/clocks_predictions.csv"
+clocks_results.to_csv(clocks_results_path, index=False)
+print(f"表观遗传时钟预测结果已保存到: {clocks_results_path}")
+print(clocks_results.head())
+
+# 释放时钟模型内存
+print("\n释放时钟模型内存...")
+del model_clocks
+del datamodule_clocks
+del clocks_predictions
+if torch.backends.mps.is_available():
+    torch.mps.empty_cache()
+elif torch.cuda.is_available():
+    torch.cuda.empty_cache()
+gc.collect()
+print("内存已释放")
+
 # ============================================================================
 # 步骤6: 综合结果
 # ============================================================================
@@ -647,12 +824,34 @@ print("=" * 80)
 
 # 合并所有预测结果
 combined_results = pd.merge(age_results, cancer_results, on="sample_id")
+combined_results = pd.merge(combined_results, clocks_results, on="sample_id")
 combined_results_path = f"{RESULTS_DIR}/combined_predictions.csv"
 combined_results.to_csv(combined_results_path, index=False)
 
 print(f"综合预测结果已保存到: {combined_results_path}")
 print("\n预测结果摘要:")
 print(combined_results.describe())
+
+# 检查年龄预测的合理性
+print("\n年龄预测质量检查:")
+print(f"  - age_cot模型预测范围: {age_results['predicted_age'].min():.2f} - {age_results['predicted_age'].max():.2f} 岁")
+if "Horvath" in clocks_results.columns:
+    print(f"  - Horvath时钟预测范围: {clocks_results['Horvath'].min():.2f} - {clocks_results['Horvath'].max():.2f} 岁")
+if "Hannum" in clocks_results.columns:
+    print(f"  - Hannum时钟预测范围: {clocks_results['Hannum'].min():.2f} - {clocks_results['Hannum'].max():.2f} 岁")
+
+# 如果年龄预测异常（如负数或过大），给出警告
+if age_results['predicted_age'].min() < 0:
+    print("\n⚠️ 警告: 检测到负数年龄预测！")
+    print("   可能原因:")
+    print("   1. 数据质量问题（缺失值、异常值）")
+    print("   2. 特征匹配不足（可用特征太少）")
+    print("   3. 平台差异（935k vs 训练数据平台）")
+    print(f"   建议: 检查数据质量，当前可用特征数: {len(available_features)}")
+
+if age_results['predicted_age'].max() > 120:
+    print("\n⚠️ 警告: 检测到异常高的年龄预测（>120岁）！")
+    print("   建议检查数据预处理和特征匹配")
 
 # ============================================================================
 # 步骤7: 生成可视化图表
@@ -891,12 +1090,21 @@ def generate_html_report(combined_results, report_path, figures_dir):
     <body>
         <div class="header">
             <h1>🧬 935k甲基化数据零样本推理分析报告</h1>
-            <p>基于CpGPT预训练模型的年龄与癌症预测分析</p>
+            <p>基于CpGPT预训练模型的多维度表观遗传分析</p>
             <p>生成时间: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         </div>
 
         <div class="section">
             <h2>📊 执行摘要</h2>
+
+            <div class="alert alert-info">
+                <strong>🤖 使用的AI模型：</strong>
+                <ul style="margin: 10px 0 0 0;">
+                    <li><strong>age_cot：</strong> 多组织年龄预测模型（Chain-of-Thought）</li>
+                    <li><strong>cancer：</strong> 多组织癌症预测模型</li>
+                    <li><strong>clock_proxies：</strong> 五大表观遗传时钟集成模型（Horvath, Hannum, PhenoAge, GrimAge, DunedinPACE）</li>
+                </ul>
+            </div>
             <div class="stats-grid">
                 <div class="stat-card">
                     <h4>总样本数</h4>
@@ -996,6 +1204,107 @@ def generate_html_report(combined_results, report_path, figures_dir):
                     <li>表观遗传年龄（DNA甲基化年龄）可能与实际年龄存在差异，这种差异称为"年龄加速"</li>
                     <li>年龄加速与多种健康状况相关，包括死亡率、慢性疾病风险等</li>
                     <li>建议将预测年龄与实际年龄对比，评估表观遗传年龄加速情况</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⏰ 表观遗传时钟分析</h2>
+
+            <div class="alert alert-info">
+                <strong>ℹ️ 关于表观遗传时钟：</strong> 表观遗传时钟是基于DNA甲基化模式预测生物学年龄的算法。
+                不同的时钟模型关注不同的生物学特征和健康结局。
+            </div>
+
+            <h3>五大表观遗传时钟预测结果</h3>
+            <table>
+                <tr>
+                    <th>时钟模型</th>
+                    <th>平均年龄</th>
+                    <th>范围</th>
+                    <th>标准差</th>
+                    <th>特点</th>
+                </tr>
+                {f'''
+                <tr>
+                    <td><strong>Horvath时钟</strong></td>
+                    <td>{combined_results["Horvath"].mean():.2f} 岁</td>
+                    <td>{combined_results["Horvath"].min():.2f} - {combined_results["Horvath"].max():.2f}</td>
+                    <td>{combined_results["Horvath"].std():.2f}</td>
+                    <td>多组织通用，最早的表观遗传时钟</td>
+                </tr>
+                ''' if "Horvath" in combined_results.columns else ''}
+                {f'''
+                <tr>
+                    <td><strong>Hannum时钟</strong></td>
+                    <td>{combined_results["Hannum"].mean():.2f} 岁</td>
+                    <td>{combined_results["Hannum"].min():.2f} - {combined_results["Hannum"].max():.2f}</td>
+                    <td>{combined_results["Hannum"].std():.2f}</td>
+                    <td>血液特异性，预测实际年龄</td>
+                </tr>
+                ''' if "Hannum" in combined_results.columns else ''}
+                {f'''
+                <tr>
+                    <td><strong>PhenoAge时钟</strong></td>
+                    <td>{combined_results["PhenoAge"].mean():.2f} 岁</td>
+                    <td>{combined_results["PhenoAge"].min():.2f} - {combined_results["PhenoAge"].max():.2f}</td>
+                    <td>{combined_results["PhenoAge"].std():.2f}</td>
+                    <td>预测表型年龄，与死亡率相关</td>
+                </tr>
+                ''' if "PhenoAge" in combined_results.columns else ''}
+                {f'''
+                <tr>
+                    <td><strong>GrimAge时钟</strong></td>
+                    <td>{combined_results["GrimAge"].mean():.2f} 岁</td>
+                    <td>{combined_results["GrimAge"].min():.2f} - {combined_results["GrimAge"].max():.2f}</td>
+                    <td>{combined_results["GrimAge"].std():.2f}</td>
+                    <td>预测寿命，与多种疾病风险相关</td>
+                </tr>
+                ''' if "GrimAge" in combined_results.columns else ''}
+                {f'''
+                <tr>
+                    <td><strong>DunedinPACE</strong></td>
+                    <td>{combined_results["DunedinPACE"].mean():.2f}</td>
+                    <td>{combined_results["DunedinPACE"].min():.2f} - {combined_results["DunedinPACE"].max():.2f}</td>
+                    <td>{combined_results["DunedinPACE"].std():.2f}</td>
+                    <td>衰老速度指标（非年龄，1.0=正常速度）</td>
+                </tr>
+                ''' if "DunedinPACE" in combined_results.columns else ''}
+            </table>
+
+            <div class="interpretation">
+                <h4>📖 时钟模型解读</h4>
+                <p><strong>各时钟的临床意义：</strong></p>
+                <ul>
+                    <li><strong>Horvath时钟：</strong> 最早开发的表观遗传时钟，适用于多种组织类型，预测实际年龄准确度高</li>
+                    <li><strong>Hannum时钟：</strong> 专门针对血液样本开发，与免疫系统衰老密切相关</li>
+                    <li><strong>PhenoAge：</strong> 预测"表型年龄"，比实际年龄更能反映健康状态和死亡风险</li>
+                    <li><strong>GrimAge：</strong> 目前预测寿命最准确的时钟，与吸烟、BMI、疾病史等因素相关</li>
+                    <li><strong>DunedinPACE：</strong> 衡量衰老速度而非年龄，1.0表示正常衰老速度，>1.0表示加速衰老</li>
+                </ul>
+                <p><strong>年龄加速的意义：</strong></p>
+                <ul>
+                    <li>表观遗传年龄 > 实际年龄：年龄加速，可能提示健康风险增加</li>
+                    <li>表观遗传年龄 < 实际年龄：年龄减速，可能提示较好的健康状态</li>
+                    <li>建议将预测年龄与实际年龄对比，评估个体化健康风险</li>
+                </ul>
+            </div>
+
+            <h3>时钟模型对比</h3>
+            <div class="interpretation">
+                <p><strong>模型一致性分析：</strong></p>
+                <ul>
+                    {f'<li>age_cot模型预测: {combined_results["predicted_age"].mean():.2f} ± {combined_results["predicted_age"].std():.2f} 岁</li>' if "predicted_age" in combined_results.columns else ''}
+                    {f'<li>Horvath时钟预测: {combined_results["Horvath"].mean():.2f} ± {combined_results["Horvath"].std():.2f} 岁</li>' if "Horvath" in combined_results.columns else ''}
+                    {f'<li>Hannum时钟预测: {combined_results["Hannum"].mean():.2f} ± {combined_results["Hannum"].std():.2f} 岁</li>' if "Hannum" in combined_results.columns else ''}
+                    {f'<li>PhenoAge时钟预测: {combined_results["PhenoAge"].mean():.2f} ± {combined_results["PhenoAge"].std():.2f} 岁</li>' if "PhenoAge" in combined_results.columns else ''}
+                    {f'<li>GrimAge时钟预测: {combined_results["GrimAge"].mean():.2f} ± {combined_results["GrimAge"].std():.2f} 岁</li>' if "GrimAge" in combined_results.columns else ''}
+                </ul>
+                <p><strong>建议：</strong></p>
+                <ul>
+                    <li>如果多个时钟预测结果一致，说明年龄预测较为可靠</li>
+                    <li>如果不同时钟差异较大，可能反映了不同的生物学衰老维度</li>
+                    <li>GrimAge和PhenoAge更关注健康结局，可能与实际年龄差异更大</li>
                 </ul>
             </div>
         </div>
@@ -1239,9 +1548,8 @@ def generate_html_report(combined_results, report_path, figures_dir):
         </div>
 
         <div class="footer">
-            <p>报告由 CpGPT 自动生成 | 生成时间: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            <p>CpGPT: 首个具有链式思维推理能力的DNA甲基化基础模型</p>
-            <p>论文: <a href="https://www.biorxiv.org/content/10.1101/2024.10.24.619766v1" target="_blank">bioRxiv 2024.10.24.619766</a></p>
+            <p>报告由元能基因GPT平台自动生成 | 生成时间: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p>元能基因GPT平台: 首个具有链式思维推理能力的DNA甲基化基础模型</p>
         </div>
     </body>
     </html>
