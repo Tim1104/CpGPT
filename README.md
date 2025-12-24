@@ -19,6 +19,7 @@
 
 - [📖 Overview](#-overview)
 - [🚀 Quick Setup](#-quick-setup)
+- [🧬 935k/EPICv2 Platform Support](#-935kepicv2-platform-support)
 - [🗄️ CpGCorpus](#%EF%B8%8F-cpgcorpus)
 - [🐘 Model Zoo](#-model-zoo)
 - [🧪 Tutorials](#-tutorials)
@@ -35,6 +36,54 @@ Given CpGPT's generative capabilities, we have implemented an analogous version 
 ## 📖 Overview
 
 CpGPT is a foundation model for DNA methylation, trained on genome-wide DNA methylation data. It can generate, impute, and embed methylation profiles, and can be finetuned for various downstream tasks.
+
+## 🧬 935k/EPICv2 Platform Support
+
+**Good news for 935k users!** The 935k methylation array is the same as GPL33022 (EPICv2), which is natively supported by CpGPT. You can directly use CpGPT for:
+
+- ✅ **Multi-tissue organ age prediction** - Predict chronological age across different tissue types
+- ✅ **Cancer prediction** - Detect cancer status from methylation patterns
+- ✅ **Five epigenetic clocks** - altumage, dunedinpace, grimage2, hrsinchphenoage, pchorvath2013
+- ✅ **Plasma protein prediction** - Predict protein levels for mortality risk assessment
+
+### 📊 Your Data Format
+
+If your 935k data looks like this (manufacturer format):
+```csv
+TargetID,000536.AVG_Beta,000537.AVG_Beta
+cg00000029_TC21,0.4630385,0.4062999
+cg00000109_TC21,0.8233373,0.8394986
+```
+
+**Don't worry!** We provide an automatic conversion tool.
+
+### Quick Start for 935k Data
+
+```bash
+# 1. Install CpGPT
+git clone https://github.com/lcamillo/CpGPT.git
+cd CpGPT
+poetry install
+
+# 2. Convert your data format (if needed)
+python examples/convert_935k_format.py "Sample Methylation Profile.csv"
+
+# 3. Run predictions on your 935k data
+python examples/935k_simple_prediction.py
+```
+
+**Key Features**:
+- ✅ Automatic handling of probe ID suffixes (`_TC21`, `_BC21`, etc.)
+- ✅ Automatic data transposition (rows=probes → rows=samples)
+- ✅ Handles missing values
+- ✅ Processes duplicate probes (averages them)
+
+**For detailed instructions**, see:
+- [**实际使用指南 (中文)**](935k_实际使用指南.md) - For Chinese users
+- [Actual Data Format Guide](docs/935k_ACTUAL_FORMAT_GUIDE.md) - Detailed format explanation
+- [935k/EPICv2 Quick Start Guide](docs/935k_EPICv2_QUICKSTART.md) - Technical guide
+- [Simple Prediction Script](examples/935k_simple_prediction.py)
+- [Data Conversion Tool](examples/convert_935k_format.py)
 
 ## 🚀 Quick Setup
 
