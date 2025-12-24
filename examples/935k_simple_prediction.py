@@ -246,7 +246,7 @@ def main():
         dna_llm="nucleotide-transformer-v2-500m-multi-species",
         dna_context_len=2001,
         batch_size=8,
-        num_workers=0,
+        num_workers=1,  # 使用 1 个 worker 避免 PyTorch DataLoader 参数冲突
     )
     print("  ✓ DNA 嵌入索引已准备好")
     print("  ✓ DNA embedding index ready")
