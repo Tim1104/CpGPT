@@ -88,7 +88,13 @@ def main():
     # ========================================================================
     print("\n[1/6] 初始化组件...")
     print("[1/6] Initializing components...")
-    
+
+    # 打印路径信息用于调试
+    print(f"  - SCRIPT_DIR: {SCRIPT_DIR}")
+    print(f"  - PROJECT_ROOT: {PROJECT_ROOT}")
+    print(f"  - DEPENDENCIES_DIR: {DEPENDENCIES_DIR}")
+    print(f"  - DEPENDENCIES_DIR 存在: {DEPENDENCIES_DIR.exists()}")
+
     inferencer = CpGPTInferencer(dependencies_dir=str(DEPENDENCIES_DIR))
     embedder = DNALLMEmbedder(dependencies_dir=str(DEPENDENCIES_DIR))
     prober = IlluminaMethylationProber(dependencies_dir=str(DEPENDENCIES_DIR), embedder=embedder)
@@ -115,18 +121,31 @@ def main():
     homo_sapiens_link = dna_embeddings_dir / "homo_sapiens"
     human_source = Path(DEPENDENCIES_DIR) / "human" / "dna_embeddings" / "homo_sapiens"
 
+    print(f"  - 检查符号链接...")
+    print(f"    源目录: {human_source}")
+    print(f"    源目录存在: {human_source.exists()}")
+    print(f"    目标链接: {homo_sapiens_link}")
+    print(f"    目标存在: {homo_sapiens_link.exists()}")
+    print(f"    目标是符号链接: {homo_sapiens_link.is_symlink()}")
+
     if human_source.exists() and not homo_sapiens_link.exists():
         print("  - 创建符号链接...")
         print("  - Creating symbolic link...")
         try:
             # 在 Windows 上可能需要管理员权限
             homo_sapiens_link.symlink_to(human_source.resolve(), target_is_directory=True)
-        except OSError:
+            print("  ✓ 符号链接创建成功")
+        except OSError as e:
             # 如果符号链接失败，复制文件
-            print("  - 符号链接失败，复制文件...")
+            print(f"  - 符号链接失败: {e}")
             print("  - Symbolic link failed, copying files...")
             import shutil
             shutil.copytree(human_source, homo_sapiens_link, dirs_exist_ok=True)
+            print("  ✓ 文件复制成功")
+    elif homo_sapiens_link.exists():
+        print("  ✓ 符号链接已存在")
+    else:
+        print(f"  ✗ 警告: 源目录不存在: {human_source}")
 
     # 下载所需的模型
     models_to_download = []
