@@ -32,7 +32,7 @@ from cpgpt.trainer.cpgpt_trainer import CpGPTTrainer
 
 # 数据路径 (支持 CSV 或 Arrow 格式)
 # Data path (supports CSV or Arrow format)
-RAW_DATA_PATH = "./data/Sample-251107-Rico-1.csv"
+RAW_DATA_PATH = "./data/Sample251212.arrow"
 
 # 输出目录
 # Output directory
@@ -86,13 +86,34 @@ def main():
     prober = IlluminaMethylationProber(dependencies_dir=DEPENDENCIES_DIR, embedder=embedder)
     
     # ========================================================================
-    # 步骤 2: 下载依赖 (首次运行)
-    # Step 2: Download dependencies (first run only)
+    # 步骤 2: 下载依赖和模型 (首次运行)
+    # Step 2: Download dependencies and models (first run only)
     # ========================================================================
-    print("\n[2/6] 检查并下载依赖...")
-    print("[2/6] Checking and downloading dependencies...")
-    
+    print("\n[2/6] 检查并下载依赖和模型...")
+    print("[2/6] Checking and downloading dependencies and models...")
+
+    # 下载 DNA 嵌入等依赖
+    print("  - 下载 DNA 嵌入依赖...")
+    print("  - Downloading DNA embedding dependencies...")
     inferencer.download_dependencies(species="human", overwrite=False)
+
+    # 下载所需的模型
+    models_to_download = []
+    if PREDICT_AGE:
+        models_to_download.append("age_cot")
+    if PREDICT_CANCER:
+        models_to_download.append("cancer")
+    if PREDICT_CLOCKS:
+        models_to_download.append("clock_proxies")
+    if PREDICT_PROTEINS:
+        models_to_download.append("proteins")
+
+    if models_to_download:
+        print(f"  - 下载 {len(models_to_download)} 个模型...")
+        print(f"  - Downloading {len(models_to_download)} models...")
+        for model_name in models_to_download:
+            print(f"    • {model_name}")
+            inferencer.download_model(model_name, overwrite=False)
     
     # ========================================================================
     # 步骤 3: 准备数据
@@ -261,11 +282,8 @@ def main():
 
 def predict_age(inferencer, processed_dir, sample_ids, trainer):
     """年龄预测"""
-    # 下载模型
-    inferencer.download_model(model_name="age_cot", overwrite=False)
-
     # 加载配置和模型
-    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/configs/age_cot.yaml")
+    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/config/age_cot.yaml")
     model = inferencer.load_cpgpt_model(
         config,
         model_ckpt_path=f"{DEPENDENCIES_DIR}/model/weights/age_cot.ckpt",
@@ -301,11 +319,8 @@ def predict_age(inferencer, processed_dir, sample_ids, trainer):
 
 def predict_cancer(inferencer, processed_dir, sample_ids, trainer):
     """癌症预测"""
-    # 下载模型
-    inferencer.download_model(model_name="cancer", overwrite=False)
-
     # 加载配置和模型
-    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/configs/cancer.yaml")
+    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/config/cancer.yaml")
     model = inferencer.load_cpgpt_model(
         config,
         model_ckpt_path=f"{DEPENDENCIES_DIR}/model/weights/cancer.ckpt",
@@ -347,11 +362,8 @@ def predict_cancer(inferencer, processed_dir, sample_ids, trainer):
 
 def predict_clocks(inferencer, processed_dir, sample_ids, trainer):
     """表观遗传时钟预测 - 5种时钟"""
-    # 下载模型
-    inferencer.download_model(model_name="clock_proxies", overwrite=False)
-
     # 加载配置和模型
-    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/configs/clock_proxies.yaml")
+    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/config/clock_proxies.yaml")
     model = inferencer.load_cpgpt_model(
         config,
         model_ckpt_path=f"{DEPENDENCIES_DIR}/model/weights/clock_proxies.ckpt",
@@ -392,11 +404,8 @@ def predict_clocks(inferencer, processed_dir, sample_ids, trainer):
 
 def predict_proteins(inferencer, processed_dir, sample_ids, trainer):
     """蛋白质预测"""
-    # 下载模型
-    inferencer.download_model(model_name="proteins", overwrite=False)
-
     # 加载配置和模型
-    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/configs/proteins.yaml")
+    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/config/proteins.yaml")
     model = inferencer.load_cpgpt_model(
         config,
         model_ckpt_path=f"{DEPENDENCIES_DIR}/model/weights/proteins.ckpt",
