@@ -42,9 +42,14 @@ def convert_935k_format(input_csv, output_arrow=None, verbose=True):
     if verbose:
         print(f"\n[1/5] 读取数据: {input_csv}")
         print(f"[1/5] Reading data: {input_csv}")
-    
-    df = pd.read_csv(input_csv)
-    
+
+    # 读取CSV，第一列作为字符串，其他列作为数值
+    df = pd.read_csv(input_csv, dtype={0: str}, low_memory=False)
+
+    # 将除第一列外的所有列转换为数值类型
+    for col in df.columns[1:]:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
     if verbose:
         print(f"  - 原始数据形状: {df.shape}")
         print(f"  - Original shape: {df.shape}")
@@ -55,15 +60,29 @@ def convert_935k_format(input_csv, output_arrow=None, verbose=True):
     
     # 2. 清理探针ID（去除后缀）
     if verbose:
-        print(f"\n[2/5] 清理探针ID（去除 _TC21, _BC21 等后缀）")
-        print(f"[2/5] Cleaning probe IDs (removing _TC21, _BC21 suffixes)")
-    
+        print(f"\n[2/5] 清理探针ID（去除下划线后的所有后缀）")
+        print(f"[2/5] Cleaning probe IDs (removing all suffixes after underscore)")
+
     # 获取第一列名称（可能是 TargetID 或其他）
     probe_col = df.columns[0]
-    
-    # 去除探针ID的后缀（_TC21, _BC21等）
-    df[probe_col] = df[probe_col].str.split('_').str[0]
-    
+
+    # 保存原始探针ID用于调试
+    original_probes = df[probe_col].copy()
+
+    # 去除探针ID的后缀（保留下划线前的所有内容）
+    # 例如：cg00000029_TC21 -> cg00000029
+    #       cg00000029_BC21 -> cg00000029
+    #       cg00000029_BC11 -> cg00000029
+    df[probe_col] = df[probe_col].astype(str).str.split('_').str[0]
+
+    if verbose:
+        # 显示一些转换示例
+        sample_indices = [0, 1, 2] if len(df) >= 3 else list(range(len(df)))
+        print(f"  - 转换示例:")
+        print(f"  - Conversion examples:")
+        for idx in sample_indices:
+            print(f"    {original_probes.iloc[idx]} → {df[probe_col].iloc[idx]}")
+
     # 检查是否有重复的探针ID
     duplicates = df[probe_col].duplicated()
     if duplicates.any():
@@ -73,10 +92,12 @@ def convert_935k_format(input_csv, output_arrow=None, verbose=True):
             print(f"  ⚠️  Found {n_duplicates} duplicate probes (after removing suffixes)")
             print(f"  - 将对重复探针取平均值")
             print(f"  - Will average duplicate probes")
-        
-        # 对重复探针取平均值
-        df = df.groupby(probe_col, as_index=False).mean()
-    
+
+        # 对重复探针取平均值（只对数值列）
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        agg_dict = {col: 'mean' for col in numeric_cols}
+        df = df.groupby(probe_col, as_index=False).agg(agg_dict)
+
     if verbose:
         print(f"  ✓ 清理后探针数量: {len(df)}")
         print(f"  ✓ Probes after cleaning: {len(df)}")
