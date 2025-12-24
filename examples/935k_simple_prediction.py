@@ -97,6 +97,28 @@ def main():
     print("  - Downloading DNA embedding dependencies...")
     inferencer.download_dependencies(species="human", overwrite=False)
 
+    # 修复目录结构：创建符号链接
+    # S3 下载到 dependencies/human/，但代码期望 dependencies/dna_embeddings/homo_sapiens/
+    import os
+    dna_embeddings_dir = Path(DEPENDENCIES_DIR) / "dna_embeddings"
+    dna_embeddings_dir.mkdir(parents=True, exist_ok=True)
+
+    homo_sapiens_link = dna_embeddings_dir / "homo_sapiens"
+    human_source = Path(DEPENDENCIES_DIR) / "human" / "dna_embeddings"
+
+    if human_source.exists() and not homo_sapiens_link.exists():
+        print("  - 创建符号链接...")
+        print("  - Creating symbolic link...")
+        try:
+            # 在 Windows 上可能需要管理员权限
+            homo_sapiens_link.symlink_to(human_source.resolve(), target_is_directory=True)
+        except OSError:
+            # 如果符号链接失败，复制文件
+            print("  - 符号链接失败，复制文件...")
+            print("  - Symbolic link failed, copying files...")
+            import shutil
+            shutil.copytree(human_source, homo_sapiens_link, dirs_exist_ok=True)
+
     # 下载所需的模型
     models_to_download = []
     if PREDICT_AGE:
