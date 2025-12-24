@@ -232,7 +232,25 @@ def main():
         processed_dir=str(processed_dir)
     )
     datasaver.process_files(prober=prober, embedder=embedder)
-    
+
+    # 生成/加载 DNA 嵌入索引（关键步骤！）
+    print("  - 生成/加载 DNA 嵌入索引...")
+    print("  - Generating/loading DNA embedding index...")
+    all_genomic_locations = datasaver.all_genomic_locations.get("homo_sapiens", set())
+    print(f"    总共 {len(all_genomic_locations)} 个基因组位置")
+    print(f"    Total {len(all_genomic_locations)} genomic locations")
+
+    embedder.parse_dna_embeddings(
+        genomic_locations=sorted(all_genomic_locations),
+        species="homo_sapiens",
+        dna_llm="nucleotide-transformer-v2-500m-multi-species",
+        dna_context_len=2001,
+        batch_size=8,
+        num_workers=0,
+    )
+    print("  ✓ DNA 嵌入索引已准备好")
+    print("  ✓ DNA embedding index ready")
+
     # ========================================================================
     # 步骤 5: 运行预测
     # Step 5: Run predictions
