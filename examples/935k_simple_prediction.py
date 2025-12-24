@@ -30,17 +30,25 @@ from cpgpt.trainer.cpgpt_trainer import CpGPTTrainer
 # Configuration - Please modify according to your needs
 # ============================================================================
 
+# 获取脚本所在目录和项目根目录
+# Get script directory and project root
+SCRIPT_DIR = Path(__file__).parent.resolve()  # examples/
+PROJECT_ROOT = SCRIPT_DIR.parent  # CpGPT/
+
 # 数据路径 (支持 CSV 或 Arrow 格式)
 # Data path (supports CSV or Arrow format)
-RAW_DATA_PATH = "./data/Sample251212.arrow"
+RAW_DATA_PATH = SCRIPT_DIR / "data" / "Sample251212.arrow"
 
 # 输出目录
 # Output directory
-RESULTS_DIR = "./results/935k_predictions"
+RESULTS_DIR = SCRIPT_DIR / "results" / "935k_predictions"
 
 # 依赖目录 (模型和DNA嵌入)
 # Dependencies directory (models and DNA embeddings)
-DEPENDENCIES_DIR = "./dependencies"
+# 优先使用 examples/dependencies，如果不存在则使用项目根目录的 dependencies
+DEPENDENCIES_DIR = SCRIPT_DIR / "dependencies"
+if not DEPENDENCIES_DIR.exists():
+    DEPENDENCIES_DIR = PROJECT_ROOT / "dependencies"
 
 # 要运行的预测 (设置为 True 启用)
 # Predictions to run (set to True to enable)
@@ -81,9 +89,9 @@ def main():
     print("\n[1/6] 初始化组件...")
     print("[1/6] Initializing components...")
     
-    inferencer = CpGPTInferencer(dependencies_dir=DEPENDENCIES_DIR)
-    embedder = DNALLMEmbedder(dependencies_dir=DEPENDENCIES_DIR)
-    prober = IlluminaMethylationProber(dependencies_dir=DEPENDENCIES_DIR, embedder=embedder)
+    inferencer = CpGPTInferencer(dependencies_dir=str(DEPENDENCIES_DIR))
+    embedder = DNALLMEmbedder(dependencies_dir=str(DEPENDENCIES_DIR))
+    prober = IlluminaMethylationProber(dependencies_dir=str(DEPENDENCIES_DIR), embedder=embedder)
     
     # ========================================================================
     # 步骤 2: 下载依赖和模型 (首次运行)
@@ -146,12 +154,13 @@ def main():
     print("[3/6] Preparing data...")
 
     # 如果是CSV格式，检查并转换
-    if RAW_DATA_PATH.endswith('.csv'):
+    raw_data_path_str = str(RAW_DATA_PATH)
+    if raw_data_path_str.endswith('.csv'):
         print("  - 检测到 CSV 格式...")
         print("  - Detected CSV format...")
 
         # 读取CSV检查格式
-        df_check = pd.read_csv(RAW_DATA_PATH, nrows=5)
+        df_check = pd.read_csv(raw_data_path_str, nrows=5)
         first_col = df_check.columns[0]
 
         # 检查是否是厂商格式（第一列是探针ID）
@@ -169,8 +178,8 @@ def main():
 
             # 使用转换函数
             from convert_935k_format import convert_935k_format
-            arrow_path = RAW_DATA_PATH.replace('.csv', '_converted.arrow')
-            convert_935k_format(RAW_DATA_PATH, arrow_path, verbose=False)
+            arrow_path = raw_data_path_str.replace('.csv', '_converted.arrow')
+            convert_935k_format(raw_data_path_str, arrow_path, verbose=False)
             data_path = arrow_path
 
             print("  ✓ 格式转换完成")
@@ -179,12 +188,12 @@ def main():
             # 标准格式，直接转换为Arrow
             print("  - 标准格式，转换为 Arrow...")
             print("  - Standard format, converting to Arrow...")
-            df = pd.read_csv(RAW_DATA_PATH, index_col=0)
-            arrow_path = RAW_DATA_PATH.replace('.csv', '.arrow')
+            df = pd.read_csv(raw_data_path_str, index_col=0)
+            arrow_path = raw_data_path_str.replace('.csv', '.arrow')
             df.reset_index().to_feather(arrow_path)
             data_path = arrow_path
     else:
-        data_path = RAW_DATA_PATH
+        data_path = raw_data_path_str
 
     # 读取样本ID
     df_raw = pd.read_feather(data_path)
@@ -230,8 +239,8 @@ def main():
         print("  [5.1] Age prediction...")
         age_results = predict_age(inferencer, str(processed_dir), sample_ids, trainer)
         all_results['age'] = age_results
-        age_results.to_csv(f"{RESULTS_DIR}/age_predictions.csv", index=False)
-        print(f"    ✓ 保存到: {RESULTS_DIR}/age_predictions.csv")
+        age_results.to_csv(f"{str(RESULTS_DIR)}/age_predictions.csv", index=False)
+        print(f"    ✓ 保存到: {str(RESULTS_DIR)}/age_predictions.csv")
 
     # 5.2 癌症预测
     if PREDICT_CANCER:
@@ -239,8 +248,8 @@ def main():
         print("  [5.2] Cancer prediction...")
         cancer_results = predict_cancer(inferencer, str(processed_dir), sample_ids, trainer)
         all_results['cancer'] = cancer_results
-        cancer_results.to_csv(f"{RESULTS_DIR}/cancer_predictions.csv", index=False)
-        print(f"    ✓ 保存到: {RESULTS_DIR}/cancer_predictions.csv")
+        cancer_results.to_csv(f"{str(RESULTS_DIR)}/cancer_predictions.csv", index=False)
+        print(f"    ✓ 保存到: {str(RESULTS_DIR)}/cancer_predictions.csv")
 
     # 5.3 表观遗传时钟
     if PREDICT_CLOCKS:
@@ -248,8 +257,8 @@ def main():
         print("  [5.3] Epigenetic clocks prediction...")
         clocks_results = predict_clocks(inferencer, str(processed_dir), sample_ids, trainer)
         all_results['clocks'] = clocks_results
-        clocks_results.to_csv(f"{RESULTS_DIR}/clocks_predictions.csv", index=False)
-        print(f"    ✓ 保存到: {RESULTS_DIR}/clocks_predictions.csv")
+        clocks_results.to_csv(f"{str(RESULTS_DIR)}/clocks_predictions.csv", index=False)
+        print(f"    ✓ 保存到: {str(RESULTS_DIR)}/clocks_predictions.csv")
 
     # 5.4 蛋白质预测
     if PREDICT_PROTEINS:
@@ -257,8 +266,8 @@ def main():
         print("  [5.4] Protein prediction...")
         proteins_results = predict_proteins(inferencer, str(processed_dir), sample_ids, trainer)
         all_results['proteins'] = proteins_results
-        proteins_results.to_csv(f"{RESULTS_DIR}/proteins_predictions.csv", index=False)
-        print(f"    ✓ 保存到: {RESULTS_DIR}/proteins_predictions.csv")
+        proteins_results.to_csv(f"{str(RESULTS_DIR)}/proteins_predictions.csv", index=False)
+        print(f"    ✓ 保存到: {str(RESULTS_DIR)}/proteins_predictions.csv")
 
     # ========================================================================
     # 步骤 6: 合并结果
@@ -272,9 +281,9 @@ def main():
     for key, df in all_results.items():
         combined = combined.merge(df, on='sample_id', how='left')
 
-    combined.to_csv(f"{RESULTS_DIR}/combined_predictions.csv", index=False)
-    print(f"  ✓ 所有结果已保存到: {RESULTS_DIR}/combined_predictions.csv")
-    print(f"  ✓ All results saved to: {RESULTS_DIR}/combined_predictions.csv")
+    combined.to_csv(f"{str(RESULTS_DIR)}/combined_predictions.csv", index=False)
+    print(f"  ✓ 所有结果已保存到: {str(RESULTS_DIR)}/combined_predictions.csv")
+    print(f"  ✓ All results saved to: {str(RESULTS_DIR)}/combined_predictions.csv")
 
     # ========================================================================
     # 完成
@@ -306,17 +315,17 @@ def main():
 def predict_age(inferencer, processed_dir, sample_ids, trainer):
     """年龄预测"""
     # 加载配置和模型
-    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/config/age_cot.yaml")
+    config = inferencer.load_cpgpt_config(f"{str(DEPENDENCIES_DIR)}/model/config/age_cot.yaml")
     model = inferencer.load_cpgpt_model(
         config,
-        model_ckpt_path=f"{DEPENDENCIES_DIR}/model/weights/age_cot.ckpt",
+        model_ckpt_path=f"{str(DEPENDENCIES_DIR)}/model/weights/age_cot.ckpt",
         strict_load=True
     )
 
     # 创建数据模块
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
-        dependencies_dir=DEPENDENCIES_DIR,
+        dependencies_dir=str(DEPENDENCIES_DIR),
         batch_size=1,
         num_workers=0,
         max_length=MAX_INPUT_LENGTH,
@@ -343,17 +352,17 @@ def predict_age(inferencer, processed_dir, sample_ids, trainer):
 def predict_cancer(inferencer, processed_dir, sample_ids, trainer):
     """癌症预测"""
     # 加载配置和模型
-    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/config/cancer.yaml")
+    config = inferencer.load_cpgpt_config(f"{str(DEPENDENCIES_DIR)}/model/config/cancer.yaml")
     model = inferencer.load_cpgpt_model(
         config,
-        model_ckpt_path=f"{DEPENDENCIES_DIR}/model/weights/cancer.ckpt",
+        model_ckpt_path=f"{str(DEPENDENCIES_DIR)}/model/weights/cancer.ckpt",
         strict_load=True
     )
 
     # 创建数据模块
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
-        dependencies_dir=DEPENDENCIES_DIR,
+        dependencies_dir=str(DEPENDENCIES_DIR),
         batch_size=1,
         num_workers=0,
         max_length=MAX_INPUT_LENGTH,
@@ -386,17 +395,17 @@ def predict_cancer(inferencer, processed_dir, sample_ids, trainer):
 def predict_clocks(inferencer, processed_dir, sample_ids, trainer):
     """表观遗传时钟预测 - 5种时钟"""
     # 加载配置和模型
-    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/config/clock_proxies.yaml")
+    config = inferencer.load_cpgpt_config(f"{str(DEPENDENCIES_DIR)}/model/config/clock_proxies.yaml")
     model = inferencer.load_cpgpt_model(
         config,
-        model_ckpt_path=f"{DEPENDENCIES_DIR}/model/weights/clock_proxies.ckpt",
+        model_ckpt_path=f"{str(DEPENDENCIES_DIR)}/model/weights/clock_proxies.ckpt",
         strict_load=True
     )
 
     # 创建数据模块
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
-        dependencies_dir=DEPENDENCIES_DIR,
+        dependencies_dir=str(DEPENDENCIES_DIR),
         batch_size=1,
         num_workers=0,
         max_length=MAX_INPUT_LENGTH,
@@ -428,17 +437,17 @@ def predict_clocks(inferencer, processed_dir, sample_ids, trainer):
 def predict_proteins(inferencer, processed_dir, sample_ids, trainer):
     """蛋白质预测"""
     # 加载配置和模型
-    config = inferencer.load_cpgpt_config(f"{DEPENDENCIES_DIR}/model/config/proteins.yaml")
+    config = inferencer.load_cpgpt_config(f"{str(DEPENDENCIES_DIR)}/model/config/proteins.yaml")
     model = inferencer.load_cpgpt_model(
         config,
-        model_ckpt_path=f"{DEPENDENCIES_DIR}/model/weights/proteins.ckpt",
+        model_ckpt_path=f"{str(DEPENDENCIES_DIR)}/model/weights/proteins.ckpt",
         strict_load=True
     )
 
     # 创建数据模块
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
-        dependencies_dir=DEPENDENCIES_DIR,
+        dependencies_dir=str(DEPENDENCIES_DIR),
         batch_size=1,
         num_workers=0,
         max_length=MAX_INPUT_LENGTH,
