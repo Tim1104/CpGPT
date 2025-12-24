@@ -98,13 +98,14 @@ def main():
     inferencer.download_dependencies(species="human", overwrite=False)
 
     # 修复目录结构：创建符号链接
-    # S3 下载到 dependencies/human/，但代码期望 dependencies/dna_embeddings/homo_sapiens/
+    # S3 下载到 dependencies/human/dna_embeddings/homo_sapiens/
+    # 但代码期望 dependencies/dna_embeddings/homo_sapiens/
     import os
     dna_embeddings_dir = Path(DEPENDENCIES_DIR) / "dna_embeddings"
     dna_embeddings_dir.mkdir(parents=True, exist_ok=True)
 
     homo_sapiens_link = dna_embeddings_dir / "homo_sapiens"
-    human_source = Path(DEPENDENCIES_DIR) / "human" / "dna_embeddings"
+    human_source = Path(DEPENDENCIES_DIR) / "human" / "dna_embeddings" / "homo_sapiens"
 
     if human_source.exists() and not homo_sapiens_link.exists():
         print("  - 创建符号链接...")
