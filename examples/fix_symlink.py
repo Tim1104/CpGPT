@@ -16,7 +16,7 @@ def main():
     print("=" * 60)
     
     # 设置目录路径
-    deps_dir = Path("dependencies")
+    deps_dir = Path("../dependencies")
     source_dir = deps_dir / "human" / "dna_embeddings" / "homo_sapiens"
     target_dir = deps_dir / "dna_embeddings"
     link_path = target_dir / "homo_sapiens"
@@ -66,7 +66,7 @@ def main():
     
     try:
         # 使用相对路径创建符号链接
-        relative_source = Path("..") / "human" / "dna_embeddings" / "homo_sapiens"
+        relative_source = Path("../..") / "human" / "dna_embeddings" / "homo_sapiens"
         link_path.symlink_to(relative_source, target_is_directory=True)
         print("✓ 符号链接创建成功（使用符号链接）")
         print("✓ Symbolic link created successfully")
