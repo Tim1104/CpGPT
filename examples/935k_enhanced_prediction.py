@@ -836,10 +836,57 @@ def generate_pdf_report(combined_df, output_dir):
         import matplotlib
         matplotlib.use('Agg')
 
-        # 注册中文字体（如果可用）
+        # 配置matplotlib中文字体
         try:
-            pdfmetrics.registerFont(TTFont('SimHei', '/System/Library/Fonts/STHeiti Light.ttc'))
-            chinese_font = 'SimHei'
+            # 尝试多个常见的中文字体
+            chinese_fonts = [
+                'SimHei',  # Windows
+                'WenQuanYi Micro Hei',  # Linux
+                'Noto Sans CJK SC',  # Linux
+                'Droid Sans Fallback',  # Linux
+                'STHeiti',  # macOS
+                'Arial Unicode MS',  # macOS
+            ]
+
+            import matplotlib.font_manager as fm
+            available_fonts = [f.name for f in fm.fontManager.ttflist]
+
+            chinese_font_found = False
+            for font in chinese_fonts:
+                if font in available_fonts:
+                    plt.rcParams['font.sans-serif'] = [font]
+                    plt.rcParams['axes.unicode_minus'] = False
+                    chinese_font_found = True
+                    print(f"  ✓ 使用中文字体: {font}")
+                    break
+
+            if not chinese_font_found:
+                print("  ⚠ 未找到中文字体，图表中文可能显示为方框")
+                plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+        except Exception as e:
+            print(f"  ⚠ 中文字体配置失败: {e}")
+            plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+
+        # 注册PDF中文字体（如果可用）
+        try:
+            # 尝试多个中文字体路径
+            font_paths = [
+                '/System/Library/Fonts/STHeiti Light.ttc',  # macOS
+                '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',  # Linux WenQuanYi
+                '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',  # Linux Droid
+                'C:\\Windows\\Fonts\\simhei.ttf',  # Windows
+            ]
+
+            chinese_font = 'Helvetica'
+            for font_path in font_paths:
+                try:
+                    from pathlib import Path
+                    if Path(font_path).exists():
+                        pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
+                        chinese_font = 'ChineseFont'
+                        break
+                except:
+                    continue
         except:
             chinese_font = 'Helvetica'
 
@@ -961,41 +1008,84 @@ def generate_pdf_report(combined_df, output_dir):
 
         # 3.1 年龄预测分布
         if 'predicted_age' in combined_df.columns:
-            fig, ax = plt.subplots(figsize=(8, 5))
-            ax.hist(combined_df['predicted_age'].dropna(), bins=30, color='skyblue', edgecolor='black')
-            ax.set_xlabel('Predicted Age (years)', fontsize=12)
-            ax.set_ylabel('Frequency', fontsize=12)
-            ax.set_title('Distribution of Predicted Ages', fontsize=14, fontweight='bold')
-            ax.grid(True, alpha=0.3)
+            try:
+                fig, ax = plt.subplots(figsize=(8, 5))
 
-            age_dist_path = f"{output_dir}/age_distribution.png"
-            plt.tight_layout()
-            plt.savefig(age_dist_path, dpi=150, bbox_inches='tight')
-            plt.close()
+                # 自动调整bins数量，避免数据范围太小的错误
+                age_data = combined_df['predicted_age'].dropna()
+                n_samples = len(age_data)
 
-            story.append(Paragraph("3.1 Age Distribution / 年龄分布", styles['Heading3']))
-            story.append(Image(age_dist_path, width=5*inch, height=3.125*inch))
-            story.append(Spacer(1, 0.2*inch))
+                if n_samples > 0:
+                    data_range = age_data.max() - age_data.min()
+
+                    # 根据样本数和数据范围自动调整bins
+                    if n_samples < 10:
+                        bins = min(5, n_samples)
+                    elif data_range < 1:
+                        bins = 5
+                    elif data_range < 10:
+                        bins = min(10, n_samples)
+                    else:
+                        bins = min(30, n_samples)
+
+                    ax.hist(age_data, bins=bins, color='skyblue', edgecolor='black')
+                    ax.set_xlabel('Predicted Age (years)', fontsize=12)
+                    ax.set_ylabel('Frequency', fontsize=12)
+                    ax.set_title('Distribution of Predicted Ages', fontsize=14, fontweight='bold')
+                    ax.grid(True, alpha=0.3)
+
+                    age_dist_path = f"{output_dir}/age_distribution.png"
+                    plt.tight_layout()
+                    plt.savefig(age_dist_path, dpi=150, bbox_inches='tight')
+                    plt.close()
+
+                    story.append(Paragraph("3.1 Age Distribution / 年龄分布", styles['Heading3']))
+                    story.append(Image(age_dist_path, width=5*inch, height=3.125*inch))
+                    story.append(Spacer(1, 0.2*inch))
+            except Exception as e:
+                print(f"  ⚠ 年龄分布图生成失败: {e}")
+                plt.close()
 
         # 3.2 癌症风险分布
         if 'cancer_probability' in combined_df.columns:
-            fig, ax = plt.subplots(figsize=(8, 5))
-            ax.hist(combined_df['cancer_probability'].dropna(), bins=30, color='salmon', edgecolor='black')
-            ax.set_xlabel('Cancer Probability', fontsize=12)
-            ax.set_ylabel('Frequency', fontsize=12)
-            ax.set_title('Distribution of Cancer Risk', fontsize=14, fontweight='bold')
-            ax.axvline(x=0.5, color='red', linestyle='--', linewidth=2, label='Threshold')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
+            try:
+                fig, ax = plt.subplots(figsize=(8, 5))
 
-            cancer_dist_path = f"{output_dir}/cancer_distribution.png"
-            plt.tight_layout()
-            plt.savefig(cancer_dist_path, dpi=150, bbox_inches='tight')
-            plt.close()
+                # 自动调整bins数量
+                cancer_data = combined_df['cancer_probability'].dropna()
+                n_samples = len(cancer_data)
 
-            story.append(Paragraph("3.2 Cancer Risk Distribution / 癌症风险分布", styles['Heading3']))
-            story.append(Image(cancer_dist_path, width=5*inch, height=3.125*inch))
-            story.append(Spacer(1, 0.2*inch))
+                if n_samples > 0:
+                    data_range = cancer_data.max() - cancer_data.min()
+
+                    if n_samples < 10:
+                        bins = min(5, n_samples)
+                    elif data_range < 0.1:
+                        bins = 5
+                    elif data_range < 0.5:
+                        bins = min(10, n_samples)
+                    else:
+                        bins = min(30, n_samples)
+
+                    ax.hist(cancer_data, bins=bins, color='salmon', edgecolor='black')
+                    ax.set_xlabel('Cancer Probability', fontsize=12)
+                    ax.set_ylabel('Frequency', fontsize=12)
+                    ax.set_title('Distribution of Cancer Risk', fontsize=14, fontweight='bold')
+                    ax.axvline(x=0.5, color='red', linestyle='--', linewidth=2, label='Threshold')
+                    ax.legend()
+                    ax.grid(True, alpha=0.3)
+
+                    cancer_dist_path = f"{output_dir}/cancer_distribution.png"
+                    plt.tight_layout()
+                    plt.savefig(cancer_dist_path, dpi=150, bbox_inches='tight')
+                    plt.close()
+
+                    story.append(Paragraph("3.2 Cancer Risk Distribution / 癌症风险分布", styles['Heading3']))
+                    story.append(Image(cancer_dist_path, width=5*inch, height=3.125*inch))
+                    story.append(Spacer(1, 0.2*inch))
+            except Exception as e:
+                print(f"  ⚠ 癌症风险分布图生成失败: {e}")
+                plt.close()
 
         # 4. 风险分层总结
         story.append(PageBreak())
