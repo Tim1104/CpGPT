@@ -1036,98 +1036,81 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
         story.append(Spacer(1, 0.3*inch))
 
         # ========================================================================
-        # 第2章：多组织器官年龄预测
+        # 第2章：器官健康评分（基于蛋白质生物标志物）
         # ========================================================================
 
         story.append(PageBreak())
-        story.append(Paragraph("2. Multi-Tissue Organ Age Prediction / 多组织器官年龄预测", heading_style))
+        story.append(Paragraph("2. Organ Health Scores / 器官健康评分", heading_style))
+        story.append(Paragraph("Based on organ-specific protein biomarkers / 基于器官特异性蛋白质生物标志物", body_style))
+        story.append(Spacer(1, 0.2*inch))
 
-        # 2.1 器官年龄预测结果表格
-        organ_age_data = [['Organ / 器官', 'Predicted Age / 预测年龄', 'Status / 状态']]
+        # 2.1 器官健康评分表格
+        organ_systems = get_organ_specific_proteins()
+        organ_health_data = [['Organ System / 器官系统', 'Health Score / 健康评分', 'Level / 等级']]
 
-        organ_columns = {
-            'brain_age': 'Brain / 脑',
-            'liver_age': 'Liver / 肝脏',
-            'heart_age': 'Heart / 心脏',
-            'lung_age': 'Lung / 肺',
-            'kidney_age': 'Kidney / 肾脏',
-            'muscle_age': 'Muscle / 肌肉',
-            'adipose_age': 'Adipose / 脂肪',
-            'blood_age': 'Blood / 血液',
-            'immune_age': 'Immune / 免疫',
-            'skin_age': 'Skin / 皮肤',
-            'bone_age': 'Bone / 骨骼',
-        }
+        has_organ_health = False
+        for organ_key, organ_info in organ_systems.items():
+            organ_name = organ_info['name']
+            score_col = f'{organ_key}_score'
+            level_col = f'{organ_key}_level'
 
-        has_organ_data = False
-        for col, name in organ_columns.items():
-            if col in sample_data.index and pd.notna(sample_data[col]):
-                has_organ_data = True
-                age_val = sample_data[col]
-                # 判断状态
-                if 'predicted_age' in sample_data.index and pd.notna(sample_data['predicted_age']):
-                    diff = age_val - sample_data['predicted_age']
-                    if diff > 5:
-                        status = "Accelerated / 加速"
-                    elif diff < -5:
-                        status = "Decelerated / 减缓"
-                    else:
-                        status = "Normal / 正常"
-                else:
-                    status = "N/A"
-                organ_age_data.append([name, f"{age_val:.1f} years", status])
+            if score_col in sample_data.index and pd.notna(sample_data[score_col]):
+                has_organ_health = True
+                score = sample_data[score_col]
+                level = sample_data[level_col] if level_col in sample_data.index else "N/A"
+                organ_health_data.append([organ_name, f"{score:.1f}", str(level)])
 
-        if has_organ_data:
-            organ_table = Table(organ_age_data, colWidths=[2.5*inch, 2*inch, 2*inch])
-            organ_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E74C3C')),
+        if has_organ_health:
+            organ_health_table = Table(organ_health_data, colWidths=[3*inch, 1.5*inch, 2*inch])
+            organ_health_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E67E22')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, -1), chinese_font),
                 ('FONTSIZE', (0, 0), (-1, 0), 11),
                 ('FONTSIZE', (0, 1), (-1, -1), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.bisque),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
-            story.append(organ_table)
+            story.append(organ_health_table)
             story.append(Spacer(1, 0.2*inch))
 
-            # 2.2 器官年龄雷达图
+            # 2.2 器官健康雷达图
             try:
-                organ_ages = []
+                organ_scores = []
                 organ_labels = []
-                for col, name in organ_columns.items():
-                    if col in sample_data.index and pd.notna(sample_data[col]):
-                        organ_ages.append(sample_data[col])
-                        organ_labels.append(name.split('/')[0].strip())
+                for organ_key, organ_info in organ_systems.items():
+                    score_col = f'{organ_key}_score'
+                    if score_col in sample_data.index and pd.notna(sample_data[score_col]):
+                        organ_scores.append(sample_data[score_col])
+                        organ_labels.append(organ_info['name'].split('(')[0].strip())
 
-                if len(organ_ages) >= 3:
+                if len(organ_scores) >= 3:
                     import numpy as np
                     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection='polar'))
 
                     # 计算角度
-                    angles = np.linspace(0, 2 * np.pi, len(organ_ages), endpoint=False).tolist()
-                    organ_ages_plot = organ_ages + [organ_ages[0]]
+                    angles = np.linspace(0, 2 * np.pi, len(organ_scores), endpoint=False).tolist()
+                    organ_scores_plot = organ_scores + [organ_scores[0]]
                     angles += angles[:1]
 
                     # 绘制雷达图
-                    ax.plot(angles, organ_ages_plot, 'o-', linewidth=2, color='#E74C3C', label='Organ Age')
-                    ax.fill(angles, organ_ages_plot, alpha=0.25, color='#E74C3C')
+                    ax.plot(angles, organ_scores_plot, 'o-', linewidth=2, color='#E67E22', label='Health Score')
+                    ax.fill(angles, organ_scores_plot, alpha=0.25, color='#E67E22')
 
-                    # 添加参考线（实际年龄）
-                    if 'predicted_age' in sample_data.index and pd.notna(sample_data['predicted_age']):
-                        ref_age = [sample_data['predicted_age']] * len(angles)
-                        ax.plot(angles, ref_age, '--', linewidth=2, color='blue', label='Predicted Age')
+                    # 添加参考线（健康阈值）
+                    healthy_threshold = [75] * len(angles)  # 75分为良好阈值
+                    ax.plot(angles, healthy_threshold, '--', linewidth=2, color='green', label='Healthy Threshold (75)')
 
                     ax.set_xticks(angles[:-1])
                     ax.set_xticklabels(organ_labels, fontsize=10)
-                    ax.set_ylim(0, max(organ_ages) * 1.2)
-                    ax.set_title('Multi-Tissue Organ Age / 多组织器官年龄', fontsize=14, fontweight='bold', pad=20)
+                    ax.set_ylim(0, 100)
+                    ax.set_title('Organ Health Scores / 器官健康评分', fontsize=14, fontweight='bold', pad=20)
                     ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
                     ax.grid(True)
 
-                    organ_radar_path = f"{output_dir}/organ_age_radar_{sample_id}.png"
+                    organ_radar_path = f"{output_dir}/organ_health_radar_{sample_id}.png"
                     plt.tight_layout()
                     plt.savefig(organ_radar_path, dpi=150, bbox_inches='tight')
                     plt.close()
@@ -1135,10 +1118,10 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
                     story.append(Image(organ_radar_path, width=5*inch, height=5*inch))
                     story.append(Spacer(1, 0.2*inch))
             except Exception as e:
-                print(f"    ⚠ 器官年龄雷达图生成失败: {e}")
+                print(f"    ⚠ 器官健康雷达图生成失败: {e}")
                 plt.close()
         else:
-            story.append(Paragraph("No organ age data available / 无器官年龄数据", styles['Normal']))
+            story.append(Paragraph("No organ health data available / 无器官健康数据", body_style))
             story.append(Spacer(1, 0.2*inch))
 
         # ========================================================================
@@ -1228,28 +1211,32 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
         # 4.1 时钟结果表格
         clock_data = [['Clock / 时钟', 'Age / 年龄', 'Acceleration / 加速']]
 
+        # 实际预测的5种时钟
         clock_columns = {
-            'horvath': 'Horvath Clock / Horvath时钟',
-            'hannum': 'Hannum Clock / Hannum时钟',
-            'phenoage': 'PhenoAge / 表型年龄',
-            'grimage': 'GrimAge / Grim年龄',
+            'altumage': 'AltumAge / Altum年龄',
+            'dunedinpace': 'DunedinPACE / 衰老速度',
             'grimage2': 'GrimAge2 / Grim年龄2',
+            'hrsinchphenoage': 'PhenoAge / 表型年龄',
+            'pchorvath2013': 'Horvath2013 / Horvath时钟',
         }
 
         has_clock_data = False
         for col, name in clock_columns.items():
             if col in sample_data.index and pd.notna(sample_data[col]):
                 has_clock_data = True
-                clock_age = sample_data[col]
+                clock_value = sample_data[col]
 
-                # 计算加速
-                if 'predicted_age' in sample_data.index and pd.notna(sample_data['predicted_age']):
-                    acceleration = clock_age - sample_data['predicted_age']
-                    accel_str = f"{acceleration:+.1f} years"
+                # DunedinPACE是速度指标（正常值约100），不是年龄
+                if col == 'dunedinpace':
+                    clock_data.append([name, f"{clock_value:.2f}", "Pace of Aging / 衰老速度"])
                 else:
-                    accel_str = "N/A"
-
-                clock_data.append([name, f"{clock_age:.1f} years", accel_str])
+                    # 其他时钟是年龄，计算加速
+                    if 'predicted_age' in sample_data.index and pd.notna(sample_data['predicted_age']):
+                        acceleration = clock_value - sample_data['predicted_age']
+                        accel_str = f"{acceleration:+.1f} years"
+                    else:
+                        accel_str = "N/A"
+                    clock_data.append([name, f"{clock_value:.1f} years", accel_str])
 
         if has_clock_data:
             clock_table = Table(clock_data, colWidths=[3*inch, 1.5*inch, 2*inch])
@@ -1397,98 +1384,7 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
             story.append(Paragraph("No protein data available / 无蛋白质数据", styles['Normal']))
             story.append(Spacer(1, 0.2*inch))
 
-        # ========================================================================
-        # 第6章：器官健康评分
-        # ========================================================================
 
-        story.append(PageBreak())
-        story.append(Paragraph("6. Organ Health Scores / 器官健康评分", heading_style))
-
-        # 6.1 器官健康评分表格
-        organ_health_data = [['Organ System / 器官系统', 'Score / 评分', 'Level / 等级']]
-
-        organ_health_columns = {
-            'heart_score': 'Heart / 心脏',
-            'kidney_score': 'Kidney / 肾脏',
-            'liver_score': 'Liver / 肝脏',
-            'immune_score': 'Immune System / 免疫系统',
-            'metabolic_score': 'Metabolic System / 代谢系统',
-            'vascular_score': 'Vascular System / 血管系统',
-        }
-
-        has_organ_health = False
-        for col, name in organ_health_columns.items():
-            if col in sample_data.index and pd.notna(sample_data[col]):
-                has_organ_health = True
-                score = sample_data[col]
-                level_col = col.replace('_score', '_level')
-                level = sample_data[level_col] if level_col in sample_data.index else "N/A"
-                organ_health_data.append([name, f"{score:.1f}", str(level)])
-
-        if has_organ_health:
-            organ_health_table = Table(organ_health_data, colWidths=[3*inch, 1.5*inch, 2*inch])
-            organ_health_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E67E22')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, -1), chinese_font),
-                ('FONTSIZE', (0, 0), (-1, 0), 11),
-                ('FONTSIZE', (0, 1), (-1, -1), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.bisque),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
-            story.append(organ_health_table)
-            story.append(Spacer(1, 0.2*inch))
-
-            # 6.2 器官健康雷达图
-            try:
-                import numpy as np
-                organ_scores = []
-                organ_labels = []
-                for col, name in organ_health_columns.items():
-                    if col in sample_data.index and pd.notna(sample_data[col]):
-                        organ_scores.append(sample_data[col])
-                        organ_labels.append(name.split('/')[0].strip())
-
-                if len(organ_scores) >= 3:
-                    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection='polar'))
-
-                    angles = np.linspace(0, 2 * np.pi, len(organ_scores), endpoint=False).tolist()
-                    organ_scores_plot = organ_scores + [organ_scores[0]]
-                    angles += angles[:1]
-
-                    ax.plot(angles, organ_scores_plot, 'o-', linewidth=2, color='#E67E22', label='Organ Health Score')
-                    ax.fill(angles, organ_scores_plot, alpha=0.25, color='#E67E22')
-
-                    # 添加参考线
-                    for ref_val, label, color in [(90, 'Excellent/优秀', 'green'),
-                                                  (75, 'Good/良好', 'blue'),
-                                                  (60, 'Fair/一般', 'orange'),
-                                                  (40, 'Poor/较差', 'red')]:
-                        ref_line = [ref_val] * len(angles)
-                        ax.plot(angles, ref_line, '--', linewidth=1, color=color, alpha=0.5, label=label)
-
-                    ax.set_xticks(angles[:-1])
-                    ax.set_xticklabels(organ_labels, fontsize=10)
-                    ax.set_ylim(0, 100)
-                    ax.set_title('Organ Health Radar / 器官健康雷达图', fontsize=14, fontweight='bold', pad=20)
-                    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize=8)
-                    ax.grid(True)
-
-                    organ_health_radar_path = f"{output_dir}/organ_health_radar_{sample_id}.png"
-                    plt.tight_layout()
-                    plt.savefig(organ_health_radar_path, dpi=150, bbox_inches='tight')
-                    plt.close()
-
-                    story.append(Image(organ_health_radar_path, width=5.5*inch, height=5.5*inch))
-                    story.append(Spacer(1, 0.2*inch))
-            except Exception as e:
-                print(f"    ⚠ 器官健康雷达图生成失败: {e}")
-                plt.close()
-        else:
-            story.append(Paragraph("No organ health data available / 无器官健康数据", styles['Normal']))
-            story.append(Spacer(1, 0.2*inch))
 
         # 构建PDF
         doc.build(story)
