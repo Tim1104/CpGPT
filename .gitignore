@@ -236,3 +236,6 @@ Makefile
 .DS_Store
 .coveragerc
 dependencies/
+examples/data/935k_processed/data_Sample-251107-Rico-1/var.mmap
+examples/data/
+/examples/data/

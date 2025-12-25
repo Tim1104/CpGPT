@@ -842,29 +842,79 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
 
         # 配置matplotlib中文字体
         try:
-            chinese_fonts = [
-                'SimHei',  # Windows
-                'WenQuanYi Micro Hei',  # Linux
-                'Noto Sans CJK SC',  # Linux
-                'Droid Sans Fallback',  # Linux
-                'STHeiti',  # macOS
-                'Arial Unicode MS',  # macOS
+            import matplotlib.font_manager as fm
+            from pathlib import Path
+
+            # 清除matplotlib字体缓存
+            try:
+                cache_dir = Path(fm.get_cachedir())
+                if cache_dir.exists():
+                    import shutil
+                    for cache_file in cache_dir.glob('*.cache'):
+                        try:
+                            cache_file.unlink()
+                        except:
+                            pass
+            except:
+                pass
+
+            # 重新构建字体列表
+            fm._rebuild()
+
+            # 尝试多个中文字体路径
+            font_paths = [
+                '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+                '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+                '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+                '/usr/share/fonts/truetype/arphic/uming.ttc',
+                '/System/Library/Fonts/STHeiti Light.ttc',
+                'C:\\Windows\\Fonts\\simhei.ttf',
             ]
 
-            import matplotlib.font_manager as fm
-            available_fonts = [f.name for f in fm.fontManager.ttflist]
-
             chinese_font_found = False
-            for font in chinese_fonts:
-                if font in available_fonts:
-                    plt.rcParams['font.sans-serif'] = [font]
-                    plt.rcParams['axes.unicode_minus'] = False
-                    chinese_font_found = True
-                    break
+            for font_path in font_paths:
+                if Path(font_path).exists():
+                    try:
+                        # 直接使用字体文件路径
+                        from matplotlib.font_manager import FontProperties
+                        font_prop = FontProperties(fname=font_path)
+                        plt.rcParams['font.family'] = font_prop.get_name()
+                        plt.rcParams['font.sans-serif'] = [font_prop.get_name()]
+                        plt.rcParams['axes.unicode_minus'] = False
+                        chinese_font_found = True
+                        print(f"  ✓ 使用中文字体: {font_path}")
+                        break
+                    except Exception as e:
+                        continue
 
             if not chinese_font_found:
+                # 如果找不到字体文件，尝试使用字体名称
+                chinese_fonts = [
+                    'WenQuanYi Micro Hei',
+                    'WenQuanYi Zen Hei',
+                    'Noto Sans CJK SC',
+                    'Noto Sans CJK',
+                    'AR PL UMing CN',
+                    'SimHei',
+                    'STHeiti',
+                ]
+
+                available_fonts = [f.name for f in fm.fontManager.ttflist]
+
+                for font in chinese_fonts:
+                    if font in available_fonts:
+                        plt.rcParams['font.sans-serif'] = [font, 'DejaVu Sans']
+                        plt.rcParams['axes.unicode_minus'] = False
+                        chinese_font_found = True
+                        print(f"  ✓ 使用中文字体: {font}")
+                        break
+
+            if not chinese_font_found:
+                print("  ⚠ 未找到中文字体，图表中文可能显示为方框")
+                print("  💡 建议安装: sudo apt-get install fonts-wqy-microhei")
                 plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
         except Exception as e:
+            print(f"  ⚠ 中文字体配置失败: {e}")
             plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
 
         # 注册PDF中文字体
