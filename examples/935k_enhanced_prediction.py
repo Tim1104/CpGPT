@@ -1,12 +1,13 @@
 """
-935k/EPICv2 增强版预测脚本 - 包含死亡率预测、年龄加速和疾病风险分层
-Enhanced prediction script with mortality, age acceleration, and disease risk stratification
+935k/EPICv2 增强版预测脚本 - 包含死亡率预测、年龄加速、疾病风险分层和器官健康评分
+Enhanced prediction script with mortality, age acceleration, disease risk stratification, and organ health scores
 
 新增功能 / New Features:
 1. CpGPTGrimAge3 死亡率预测 (Mortality prediction)
 2. 年龄加速指标 (Age acceleration metrics)
 3. CVD/癌症相关蛋白风险分层 (Disease risk stratification)
-4. 详细PDF报告生成 (Comprehensive PDF report)
+4. 器官健康评分 (Organ health scores) - 6大器官系统评估 ⭐新增
+5. 详细PDF报告生成 (Comprehensive PDF report with organ health radar chart)
 """
 
 import sys
@@ -238,6 +239,13 @@ def main():
         combined = combined.merge(risk_stratification, on='sample_id', how='left')
         risk_stratification.to_csv(f"{str(RESULTS_DIR)}/risk_stratification.csv", index=False)
 
+    # 6.4 器官健康评分 ⭐新增
+    if PREDICT_PROTEINS:
+        print("\n  [6.4] 器官健康评分（基于蛋白质生物标志物）...")
+        organ_health_scores = calculate_organ_health_scores(proteins_results)
+        combined = combined.merge(organ_health_scores, on='sample_id', how='left')
+        organ_health_scores.to_csv(f"{str(RESULTS_DIR)}/organ_health_scores.csv", index=False)
+
     # 保存合并结果
     combined.to_csv(f"{str(RESULTS_DIR)}/combined_predictions.csv", index=False)
 
@@ -253,6 +261,7 @@ def main():
     print(f"  - 年龄加速: {RESULTS_DIR}/age_acceleration.csv")
     print(f"  - 死亡率预测: {RESULTS_DIR}/mortality_predictions.csv")
     print(f"  - 风险分层: {RESULTS_DIR}/risk_stratification.csv")
+    print(f"  - 器官健康评分: {RESULTS_DIR}/organ_health_scores.csv")
     print(f"  - PDF报告: {RESULTS_DIR}/comprehensive_report.pdf")
     print()
 
@@ -558,6 +567,111 @@ def calculate_disease_risk(combined_df, proteins_df, cancer_df):
     return pd.DataFrame(results)
 
 
+def calculate_organ_health_scores(proteins_df):
+    """
+    计算器官健康评分
+    基于器官特异性蛋白质生物标志物
+
+    评分范围：0-100
+    - 90-100: 优秀 (Excellent)
+    - 75-89: 良好 (Good)
+    - 60-74: 一般 (Fair)
+    - 40-59: 较差 (Poor)
+    - 0-39: 差 (Very Poor)
+    """
+    results = {'sample_id': proteins_df['sample_id'].values}
+
+    organ_proteins = get_organ_specific_proteins()
+
+    # 对每个器官系统计算健康评分
+    for organ_key, organ_info in organ_proteins.items():
+        organ_name = organ_info['name']
+        protein_list = organ_info['proteins']
+
+        # 计算该器官的蛋白质平均值
+        organ_scores = []
+        organ_protein_values = []
+
+        for idx in range(len(proteins_df)):
+            protein_values = []
+            for protein in protein_list:
+                if protein in proteins_df.columns:
+                    value = proteins_df[protein].iloc[idx]
+                    if not pd.isna(value):
+                        protein_values.append(value)
+
+            if len(protein_values) > 0:
+                # 计算平均值（标准化的蛋白质值）
+                avg_value = np.mean(protein_values)
+                organ_protein_values.append(avg_value)
+
+                # 转换为健康评分 (0-100)
+                # 假设蛋白质值已经标准化（均值0，标准差1）
+                # 负值表示低于平均水平（更健康），正值表示高于平均水平（风险更高）
+                # 转换公式：score = 100 - (value + 3) * 100 / 6
+                # 这样 value=-3 -> score=100, value=0 -> score=50, value=3 -> score=0
+                health_score = max(0, min(100, 100 - (avg_value + 3) * 100 / 6))
+                organ_scores.append(health_score)
+            else:
+                organ_scores.append(np.nan)
+                organ_protein_values.append(np.nan)
+
+        # 保存评分和原始蛋白质值
+        results[f'{organ_key}_score'] = organ_scores
+        results[f'{organ_key}_protein_avg'] = organ_protein_values
+
+        # 健康等级分类
+        health_levels = []
+        for score in organ_scores:
+            if pd.isna(score):
+                health_levels.append('未知')
+            elif score >= 90:
+                health_levels.append('优秀')
+            elif score >= 75:
+                health_levels.append('良好')
+            elif score >= 60:
+                health_levels.append('一般')
+            elif score >= 40:
+                health_levels.append('较差')
+            else:
+                health_levels.append('差')
+        results[f'{organ_key}_level'] = health_levels
+
+    # 计算综合健康评分（所有器官的平均）
+    all_organ_scores = []
+    for idx in range(len(proteins_df)):
+        scores = []
+        for organ_key in organ_proteins.keys():
+            score = results[f'{organ_key}_score'][idx]
+            if not pd.isna(score):
+                scores.append(score)
+        if len(scores) > 0:
+            all_organ_scores.append(np.mean(scores))
+        else:
+            all_organ_scores.append(np.nan)
+
+    results['overall_health_score'] = all_organ_scores
+
+    # 综合健康等级
+    overall_levels = []
+    for score in all_organ_scores:
+        if pd.isna(score):
+            overall_levels.append('未知')
+        elif score >= 90:
+            overall_levels.append('优秀')
+        elif score >= 75:
+            overall_levels.append('良好')
+        elif score >= 60:
+            overall_levels.append('一般')
+        elif score >= 40:
+            overall_levels.append('较差')
+        else:
+            overall_levels.append('差')
+    results['overall_health_level'] = overall_levels
+
+    return pd.DataFrame(results)
+
+
 # ============================================================================
 # 辅助函数
 # ============================================================================
@@ -606,6 +720,103 @@ def get_cancer_related_proteins():
         'CRP',  # C-reactive protein - 炎症
         'B2M',  # Beta-2-microglobulin - 免疫功能
     ]
+
+
+def get_organ_specific_proteins():
+    """
+    获取器官特异性蛋白质标志物
+    基于最新研究（Nature 2023, Lancet Digital Health 2025）
+    """
+    return {
+        'heart': {
+            'name': '心脏 (Heart)',
+            'proteins': [
+                'ADM',  # Adrenomedullin - 心血管调节
+                'CRP',  # C-reactive protein - 心血管炎症
+                'IL6',  # Interleukin-6 - 心脏炎症
+                'TNF_alpha',  # TNF-α - 心肌损伤
+                'ICAM1',  # ICAM-1 - 内皮功能
+                'VCAM1',  # VCAM-1 - 内皮功能
+                'E_selectin',  # E-selectin - 内皮激活
+                'P_selectin',  # P-selectin - 血小板激活
+                'Fibrinogen',  # 凝血因子
+                'vWF',  # von Willebrand factor
+                'PAI1',  # PAI-1 - 纤溶抑制
+                'MMP1',  # MMP-1 - 心脏重塑
+                'MMP9',  # MMP-9 - 心脏重塑
+            ],
+            'description': '心血管系统健康指标，包括内皮功能、炎症和凝血状态'
+        },
+        'kidney': {
+            'name': '肾脏 (Kidney)',
+            'proteins': [
+                'Cystatin_C',  # Cystatin C - 肾功能金标准
+                'B2M',  # β2-微球蛋白 - 肾小球滤过
+                'CRP',  # CRP - 肾脏炎症
+                'IL6',  # IL-6 - 肾脏炎症
+                'TNF_alpha',  # TNF-α - 肾损伤
+                'VEGF',  # VEGF - 肾血管
+                'PAI1',  # PAI-1 - 肾纤维化
+            ],
+            'description': '肾脏功能和炎症状态评估'
+        },
+        'liver': {
+            'name': '肝脏 (Liver)',
+            'proteins': [
+                'CRP',  # CRP - 肝脏合成
+                'Fibrinogen',  # 纤维蛋白原 - 肝脏合成
+                'PAI1',  # PAI-1 - 肝纤维化
+                'MMP1',  # MMP-1 - 肝纤维化
+                'MMP9',  # MMP-9 - 肝纤维化
+                'IL6',  # IL-6 - 肝脏炎症
+                'TNF_alpha',  # TNF-α - 肝损伤
+                'GDF15',  # GDF-15 - 肝脏应激
+            ],
+            'description': '肝脏合成功能和纤维化风险'
+        },
+        'immune': {
+            'name': '免疫系统 (Immune System)',
+            'proteins': [
+                'IL6',  # IL-6 - 促炎细胞因子
+                'TNF_alpha',  # TNF-α - 促炎细胞因子
+                'CRP',  # CRP - 急性期反应
+                'B2M',  # β2-微球蛋白 - 免疫激活
+                'ICAM1',  # ICAM-1 - 免疫细胞粘附
+                'VCAM1',  # VCAM-1 - 免疫细胞粘附
+                'E_selectin',  # E-selectin - 免疫细胞募集
+                'P_selectin',  # P-selectin - 免疫细胞募集
+            ],
+            'description': '免疫系统激活和炎症状态'
+        },
+        'metabolic': {
+            'name': '代谢系统 (Metabolic System)',
+            'proteins': [
+                'Leptin',  # Leptin - 能量代谢
+                'GDF15',  # GDF-15 - 代谢应激
+                'PAI1',  # PAI-1 - 代谢综合征
+                'CRP',  # CRP - 代谢炎症
+                'IL6',  # IL-6 - 代谢炎症
+                'TNF_alpha',  # TNF-α - 胰岛素抵抗
+                'ADM',  # ADM - 代谢调节
+            ],
+            'description': '代谢健康和能量平衡'
+        },
+        'vascular': {
+            'name': '血管系统 (Vascular System)',
+            'proteins': [
+                'ICAM1',  # ICAM-1 - 内皮功能
+                'VCAM1',  # VCAM-1 - 内皮功能
+                'E_selectin',  # E-selectin - 内皮激活
+                'P_selectin',  # P-selectin - 内皮激活
+                'vWF',  # vWF - 内皮损伤
+                'MMP1',  # MMP-1 - 血管重塑
+                'MMP9',  # MMP-9 - 血管重塑
+                'VEGF',  # VEGF - 血管生成
+                'ADM',  # ADM - 血管张力
+            ],
+            'description': '血管内皮功能和血管健康'
+        },
+    }
 
 
 def generate_pdf_report(combined_df, output_dir):
@@ -811,9 +1022,137 @@ def generate_pdf_report(combined_df, output_dir):
             story.append(risk_table)
             story.append(Spacer(1, 0.3*inch))
 
-        # 5. 方法学说明
+        # 5. 器官健康评分 ⭐新增
+        if 'overall_health_score' in combined_df.columns:
+            story.append(PageBreak())
+            story.append(Paragraph("5. Organ Health Scores / 器官健康评分", heading_style))
+
+            # 5.1 器官健康评分表格
+            organ_systems = get_organ_specific_proteins()
+            organ_score_data = [['Organ System / 器官系统', 'Average Score / 平均评分', 'Health Level / 健康等级']]
+
+            for organ_key, organ_info in organ_systems.items():
+                organ_name = organ_info['name']
+                score_col = f'{organ_key}_score'
+                level_col = f'{organ_key}_level'
+
+                if score_col in combined_df.columns:
+                    avg_score = combined_df[score_col].mean()
+                    # 获取最常见的健康等级
+                    if level_col in combined_df.columns:
+                        most_common_level = combined_df[level_col].mode()[0] if len(combined_df[level_col].mode()) > 0 else '未知'
+                    else:
+                        most_common_level = '未知'
+
+                    organ_score_data.append([
+                        organ_name,
+                        f"{avg_score:.1f}" if not pd.isna(avg_score) else "N/A",
+                        most_common_level
+                    ])
+
+            # 添加综合评分
+            if 'overall_health_score' in combined_df.columns:
+                overall_avg = combined_df['overall_health_score'].mean()
+                overall_level = combined_df['overall_health_level'].mode()[0] if len(combined_df['overall_health_level'].mode()) > 0 else '未知'
+                organ_score_data.append([
+                    '综合健康 (Overall)',
+                    f"{overall_avg:.1f}" if not pd.isna(overall_avg) else "N/A",
+                    overall_level
+                ])
+
+            organ_table = Table(organ_score_data, colWidths=[2.5*inch, 1.5*inch, 1.5*inch])
+            organ_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27AE60')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                # 高亮综合评分行
+                ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#D5F4E6')),
+                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ]))
+            story.append(organ_table)
+            story.append(Spacer(1, 0.3*inch))
+
+            # 5.2 器官健康雷达图
+            try:
+                fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection='polar'))
+
+                # 准备数据
+                organ_names = []
+                organ_scores = []
+                for organ_key, organ_info in organ_systems.items():
+                    score_col = f'{organ_key}_score'
+                    if score_col in combined_df.columns:
+                        avg_score = combined_df[score_col].mean()
+                        if not pd.isna(avg_score):
+                            organ_names.append(organ_info['name'].split('(')[0].strip())
+                            organ_scores.append(avg_score)
+
+                if len(organ_scores) > 0:
+                    # 计算角度
+                    angles = np.linspace(0, 2 * np.pi, len(organ_names), endpoint=False).tolist()
+                    organ_scores_plot = organ_scores + [organ_scores[0]]  # 闭合图形
+                    angles += angles[:1]
+
+                    # 绘制雷达图
+                    ax.plot(angles, organ_scores_plot, 'o-', linewidth=2, color='#27AE60', label='Organ Health')
+                    ax.fill(angles, organ_scores_plot, alpha=0.25, color='#27AE60')
+
+                    # 设置刻度和标签
+                    ax.set_xticks(angles[:-1])
+                    ax.set_xticklabels(organ_names, fontsize=10)
+                    ax.set_ylim(0, 100)
+                    ax.set_yticks([20, 40, 60, 80, 100])
+                    ax.set_yticklabels(['20', '40', '60', '80', '100'], fontsize=8)
+                    ax.set_title('Organ Health Radar Chart\n器官健康雷达图',
+                                fontsize=14, fontweight='bold', pad=20)
+
+                    # 添加参考线
+                    ax.plot(angles, [90]*len(angles), '--', linewidth=1, color='green', alpha=0.5, label='Excellent (90)')
+                    ax.plot(angles, [75]*len(angles), '--', linewidth=1, color='blue', alpha=0.5, label='Good (75)')
+                    ax.plot(angles, [60]*len(angles), '--', linewidth=1, color='orange', alpha=0.5, label='Fair (60)')
+                    ax.plot(angles, [40]*len(angles), '--', linewidth=1, color='red', alpha=0.5, label='Poor (40)')
+
+                    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize=8)
+                    ax.grid(True)
+
+                    # 保存雷达图
+                    radar_path = f"{output_dir}/organ_health_radar.png"
+                    plt.tight_layout()
+                    plt.savefig(radar_path, dpi=150, bbox_inches='tight')
+                    plt.close()
+
+                    # 添加到PDF
+                    story.append(Image(radar_path, width=5*inch, height=5*inch))
+                    story.append(Spacer(1, 0.3*inch))
+            except Exception as e:
+                print(f"  ⚠ 雷达图生成失败: {e}")
+
+            # 5.3 评分说明
+            score_explanation = """
+            <b>Organ Health Score Interpretation / 器官健康评分解读：</b><br/>
+            - <b>90-100 (优秀/Excellent):</b> Optimal organ function / 器官功能最佳<br/>
+            - <b>75-89 (良好/Good):</b> Good organ health / 器官健康良好<br/>
+            - <b>60-74 (一般/Fair):</b> Moderate concerns / 需要适度关注<br/>
+            - <b>40-59 (较差/Poor):</b> Significant concerns / 需要重点关注<br/>
+            - <b>0-39 (差/Very Poor):</b> Serious concerns / 需要紧急关注<br/><br/>
+
+            <b>Note:</b> Scores are based on protein biomarkers predicted from DNA methylation data.
+            Lower protein levels generally indicate better health (less inflammation, better function).<br/><br/>
+
+            <b>注意：</b> 评分基于从DNA甲基化数据预测的蛋白质生物标志物。
+            较低的蛋白质水平通常表示更好的健康状态（炎症更少，功能更好）。
+            """
+            story.append(Paragraph(score_explanation, styles['BodyText']))
+            story.append(Spacer(1, 0.3*inch))
+
+        # 6. 方法学说明
         story.append(PageBreak())
-        story.append(Paragraph("5. Methodology Notes / 方法学说明", heading_style))
+        story.append(Paragraph("6. Methodology Notes / 方法学说明", heading_style))
 
         methodology_text = """
         <b>CpGPT Model:</b> A transformer-based deep learning model trained on DNA methylation data
@@ -834,10 +1173,21 @@ def generate_pdf_report(combined_df, output_dir):
         - <b>PhenoAge:</b> 表型年龄预测器<br/>
         - <b>Horvath:</b> 泛组织年龄预测器<br/><br/>
 
+        <b>Organ Health Scores:</b> Based on organ-specific protein biomarkers predicted from
+        DNA methylation. Scores reflect the functional status of major organ systems including
+        heart, kidney, liver, immune system, metabolic system, and vascular system.<br/><br/>
+
+        <b>器官健康评分：</b> 基于从DNA甲基化预测的器官特异性蛋白质生物标志物。
+        评分反映主要器官系统的功能状态，包括心脏、肾脏、肝脏、免疫系统、代谢系统和血管系统。<br/><br/>
+
         <b>Risk Stratification:</b> Based on protein biomarkers, epigenetic clocks,
         and cancer prediction models.<br/><br/>
 
-        <b>风险分层：</b> 基于蛋白质生物标志物、表观遗传时钟和癌症预测模型。
+        <b>风险分层：</b> 基于蛋白质生物标志物、表观遗传时钟和癌症预测模型。<br/><br/>
+
+        <b>References:</b><br/>
+        - Nature 2023: Organ aging signatures in the plasma proteome<br/>
+        - Lancet Digital Health 2025: Proteomic organ-specific ageing signatures
         """
 
         story.append(Paragraph(methodology_text, styles['BodyText']))
