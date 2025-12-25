@@ -32,7 +32,7 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent
 
 # 数据路径
-RAW_DATA_PATH = SCRIPT_DIR / "data" / "Sample251212.arrow"
+RAW_DATA_PATH = SCRIPT_DIR / "data" / "Sample1107.arrow"
 
 # 输出目录
 RESULTS_DIR = SCRIPT_DIR / "results" / "935k_enhanced_predictions"
@@ -1008,7 +1008,16 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
         story.append(Paragraph("DNA Methylation Analysis Report", title_style))
         story.append(Paragraph("DNA甲基化分析报告", title_style))
         story.append(Spacer(1, 0.2*inch))
-        story.append(Paragraph(f"Sample ID: {sample_id}", styles['Heading3']))
+
+        # 样本ID样式
+        sample_id_style = ParagraphStyle(
+            'SampleID',
+            parent=styles['Heading3'],
+            fontName=chinese_font,
+            fontSize=14,
+            textColor=colors.HexColor('#2C3E50')
+        )
+        story.append(Paragraph(f"Sample ID: {sample_id}", sample_id_style))
         story.append(Spacer(1, 0.3*inch))
 
         # 第1章：执行摘要
@@ -1309,7 +1318,7 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
                 print(f"    ⚠ 时钟对比图生成失败: {e}")
                 plt.close()
         else:
-            story.append(Paragraph("No epigenetic clock data available / 无表观遗传时钟数据", styles['Normal']))
+            story.append(Paragraph("No epigenetic clock data available / 无表观遗传时钟数据", body_style))
             story.append(Spacer(1, 0.2*inch))
 
         # ========================================================================
@@ -1326,7 +1335,7 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
         if has_protein_data:
             # 5.1 蛋白质统计
             protein_count = len(protein_columns)
-            story.append(Paragraph(f"Total Proteins Predicted / 预测蛋白质总数: {protein_count}", styles['Normal']))
+            story.append(Paragraph(f"Total Proteins Predicted / 预测蛋白质总数: {protein_count}", body_style))
             story.append(Spacer(1, 0.1*inch))
 
             # 5.2 Top 10 蛋白质表格
@@ -1339,6 +1348,19 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
             if len(protein_values) > 0:
                 # 按值排序，取前10
                 sorted_proteins = sorted(protein_values.items(), key=lambda x: abs(x[1]), reverse=True)[:10]
+
+                # 创建子标题样式
+                subheading_style = ParagraphStyle(
+                    'SubHeading',
+                    parent=styles['Heading3'],
+                    fontName=chinese_font,
+                    fontSize=12,
+                    textColor=colors.HexColor('#16A085'),
+                    spaceAfter=6
+                )
+
+                story.append(Paragraph("Top 10 Proteins by Absolute Value / 绝对值前10的蛋白质", subheading_style))
+                story.append(Spacer(1, 0.1*inch))
 
                 protein_table_data = [['Protein / 蛋白质', 'Predicted Value / 预测值']]
                 for protein, value in sorted_proteins:
@@ -1356,8 +1378,6 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
                     ('BACKGROUND', (0, 1), (-1, -1), colors.lightgreen),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
-                story.append(Paragraph("Top 10 Proteins by Absolute Value / 绝对值前10的蛋白质", styles['Heading3']))
-                story.append(Spacer(1, 0.1*inch))
                 story.append(protein_table)
                 story.append(Spacer(1, 0.2*inch))
 
@@ -1391,7 +1411,7 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
                     print(f"    ⚠ 蛋白质分布图生成失败: {e}")
                     plt.close()
         else:
-            story.append(Paragraph("No protein data available / 无蛋白质数据", styles['Normal']))
+            story.append(Paragraph("No protein data available / 无蛋白质数据", body_style))
             story.append(Spacer(1, 0.2*inch))
 
 
@@ -1616,7 +1636,15 @@ def generate_pdf_report(combined_df, output_dir):
                     plt.savefig(age_dist_path, dpi=150, bbox_inches='tight')
                     plt.close()
 
-                    story.append(Paragraph("3.1 Age Distribution / 年龄分布", styles['Heading3']))
+                    # 子标题样式
+                    subheading_style = ParagraphStyle(
+                        'SubHeading',
+                        parent=styles['Heading3'],
+                        fontName=chinese_font,
+                        fontSize=12,
+                        textColor=colors.HexColor('#2C3E50')
+                    )
+                    story.append(Paragraph("3.1 Age Distribution / 年龄分布", subheading_style))
                     story.append(Image(age_dist_path, width=5*inch, height=3.125*inch))
                     story.append(Spacer(1, 0.2*inch))
             except Exception as e:
@@ -1657,7 +1685,7 @@ def generate_pdf_report(combined_df, output_dir):
                     plt.savefig(cancer_dist_path, dpi=150, bbox_inches='tight')
                     plt.close()
 
-                    story.append(Paragraph("3.2 Cancer Risk Distribution / 癌症风险分布", styles['Heading3']))
+                    story.append(Paragraph("3.2 Cancer Risk Distribution / 癌症风险分布", subheading_style))
                     story.append(Image(cancer_dist_path, width=5*inch, height=3.125*inch))
                     story.append(Spacer(1, 0.2*inch))
             except Exception as e:
