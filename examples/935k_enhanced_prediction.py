@@ -1025,8 +1025,9 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498DB')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, -1), chinese_font),
             ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -1082,8 +1083,9 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E74C3C')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, -1), chinese_font),
                 ('FONTSIZE', (0, 0), (-1, 0), 11),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -1171,8 +1173,9 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#9B59B6')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, -1), chinese_font),
             ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -1), colors.lavender),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -1254,8 +1257,9 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498DB')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, -1), chinese_font),
                 ('FONTSIZE', (0, 0), (-1, 0), 11),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.lightblue),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -1348,8 +1352,9 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#16A085')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTNAME', (0, 0), (-1, -1), chinese_font),
                     ('FONTSIZE', (0, 0), (-1, 0), 11),
+                    ('FONTSIZE', (0, 1), (-1, -1), 9),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.lightgreen),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -1426,8 +1431,9 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E67E22')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, -1), chinese_font),
                 ('FONTSIZE', (0, 0), (-1, 0), 11),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.bisque),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -1511,59 +1517,37 @@ def generate_pdf_report(combined_df, output_dir):
         import matplotlib
         matplotlib.use('Agg')
 
-        # 配置matplotlib中文字体
-        try:
-            # 尝试多个常见的中文字体
-            chinese_fonts = [
-                'SimHei',  # Windows
-                'WenQuanYi Micro Hei',  # Linux
-                'Noto Sans CJK SC',  # Linux
-                'Droid Sans Fallback',  # Linux
-                'STHeiti',  # macOS
-                'Arial Unicode MS',  # macOS
-            ]
+        # 使用全局配置的中文字体
+        chinese_font_path = configure_chinese_font()
 
-            import matplotlib.font_manager as fm
-            available_fonts = [f.name for f in fm.fontManager.ttflist]
-
-            chinese_font_found = False
-            for font in chinese_fonts:
-                if font in available_fonts:
-                    plt.rcParams['font.sans-serif'] = [font]
-                    plt.rcParams['axes.unicode_minus'] = False
-                    chinese_font_found = True
-                    print(f"  ✓ 使用中文字体: {font}")
-                    break
-
-            if not chinese_font_found:
-                print("  ⚠ 未找到中文字体，图表中文可能显示为方框")
-                plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
-        except Exception as e:
-            print(f"  ⚠ 中文字体配置失败: {e}")
-            plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
-
-        # 注册PDF中文字体（如果可用）
-        try:
-            # 尝试多个中文字体路径
-            font_paths = [
-                '/System/Library/Fonts/STHeiti Light.ttc',  # macOS
-                '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',  # Linux WenQuanYi
-                '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',  # Linux Droid
-                'C:\\Windows\\Fonts\\simhei.ttf',  # Windows
-            ]
-
-            chinese_font = 'Helvetica'
-            for font_path in font_paths:
-                try:
-                    from pathlib import Path
-                    if Path(font_path).exists():
-                        pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
-                        chinese_font = 'ChineseFont'
-                        break
-                except:
-                    continue
-        except:
-            chinese_font = 'Helvetica'
+        # 注册PDF中文字体
+        chinese_font = 'Helvetica'  # 默认字体
+        if chinese_font_path:
+            try:
+                pdfmetrics.registerFont(TTFont('ChineseFont', chinese_font_path))
+                chinese_font = 'ChineseFont'
+                print(f"  ✓ PDF使用中文字体: {chinese_font_path}")
+            except Exception as e:
+                print(f"  ⚠ PDF字体注册失败: {e}")
+                # 尝试其他字体路径
+                font_paths = [
+                    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+                    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+                    '/System/Library/Fonts/STHeiti Light.ttc',
+                    'C:\\Windows\\Fonts\\simhei.ttf',
+                ]
+                for font_path in font_paths:
+                    try:
+                        from pathlib import Path
+                        if Path(font_path).exists():
+                            pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
+                            chinese_font = 'ChineseFont'
+                            print(f"  ✓ PDF使用备用中文字体: {font_path}")
+                            break
+                    except:
+                        continue
+        else:
+            print("  ⚠ 未配置中文字体，PDF中文可能显示为方框")
 
         # 创建PDF
         pdf_path = f"{output_dir}/comprehensive_report.pdf"
@@ -1571,10 +1555,11 @@ def generate_pdf_report(combined_df, output_dir):
         story = []
         styles = getSampleStyleSheet()
 
-        # 自定义样式
+        # 自定义样式（使用中文字体）
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
+            fontName=chinese_font,
             fontSize=24,
             textColor=colors.HexColor('#2C3E50'),
             spaceAfter=30,
@@ -1584,9 +1569,19 @@ def generate_pdf_report(combined_df, output_dir):
         heading_style = ParagraphStyle(
             'CustomHeading',
             parent=styles['Heading2'],
+            fontName=chinese_font,
             fontSize=16,
             textColor=colors.HexColor('#34495E'),
             spaceAfter=12
+        )
+
+        # 正文样式
+        body_style = ParagraphStyle(
+            'CustomBody',
+            parent=styles['BodyText'],
+            fontName=chinese_font,
+            fontSize=10,
+            leading=14
         )
 
         # 标题
@@ -1611,8 +1606,9 @@ def generate_pdf_report(combined_df, output_dir):
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498DB')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, -1), chinese_font),  # 所有单元格使用中文字体
             ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -1778,8 +1774,9 @@ def generate_pdf_report(combined_df, output_dir):
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E74C3C')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, -1), chinese_font),
                 ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -1830,14 +1827,14 @@ def generate_pdf_report(combined_df, output_dir):
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27AE60')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, -1), chinese_font),
                 ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 # 高亮综合评分行
                 ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#D5F4E6')),
-                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
             ]))
             story.append(organ_table)
             story.append(Spacer(1, 0.3*inch))
