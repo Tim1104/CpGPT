@@ -15,6 +15,7 @@ This is a simplified script for quick predictions on 935k data.
 import sys
 from pathlib import Path
 import pandas as pd
+import numpy as np
 import torch
 from lightning import seed_everything
 
@@ -233,6 +234,37 @@ def main():
     )
     datasaver.process_files(prober=prober, embedder=embedder)
 
+    # 从处理后的数据中读取实际的样本ID（重要！）
+    # Read actual sample IDs from processed data (important!)
+    processed_sample_ids = []
+
+    # 按照 dataset_metrics 的顺序读取样本ID（与 CpGPTDataset 加载顺序一致）
+    for data_path_key in datasaver.dataset_metrics.keys():
+        # 构建数据集目录名
+        dataset_name = str(Path(data_path_key).with_suffix("")).replace("/", "_").replace("\\", "_")
+        dataset_dir = processed_dir / dataset_name
+
+        # 读取 obs_names.npy 文件获取样本ID
+        obs_names_file = dataset_dir / "obs_names.npy"
+        if obs_names_file.exists():
+            obs_names = np.load(obs_names_file, allow_pickle=True)
+            processed_sample_ids.extend(obs_names.tolist())
+        else:
+            print(f"  ⚠ 警告: 未找到 {obs_names_file}")
+            print(f"  ⚠ Warning: {obs_names_file} not found")
+
+    print(f"  - 实际处理的样本数: {len(processed_sample_ids)}")
+    print(f"  - Actually processed samples: {len(processed_sample_ids)}")
+    if len(processed_sample_ids) <= 10:
+        print(f"    样本ID: {processed_sample_ids}")
+        print(f"    Sample IDs: {processed_sample_ids}")
+    else:
+        print(f"    前5个样本ID: {processed_sample_ids[:5]}")
+        print(f"    First 5 sample IDs: {processed_sample_ids[:5]}")
+
+    # 更新 sample_ids 为实际处理的样本
+    sample_ids = processed_sample_ids
+
     # 生成/加载 DNA 嵌入索引（关键步骤！）
     print("  - 生成/加载 DNA 嵌入索引...")
     print("  - Generating/loading DNA embedding index...")
@@ -380,9 +412,19 @@ def predict_age(inferencer, processed_dir, sample_ids, trainer):
         return_keys=["pred_conditions"]
     )
 
+    # 提取预测值并确保长度匹配
+    pred_values = predictions["pred_conditions"].flatten().cpu().numpy()
+
+    # 调试信息
+    print(f"    样本数: {len(sample_ids)}, 预测数: {len(pred_values)}")
+    print(f"    Samples: {len(sample_ids)}, Predictions: {len(pred_values)}")
+
+    if len(sample_ids) != len(pred_values):
+        raise ValueError(f"样本数 ({len(sample_ids)}) 与预测数 ({len(pred_values)}) 不匹配")
+
     return pd.DataFrame({
         'sample_id': sample_ids,
-        'predicted_age': predictions["pred_conditions"].flatten()
+        'predicted_age': pred_values
     })
 
 
@@ -418,8 +460,15 @@ def predict_cancer(inferencer, processed_dir, sample_ids, trainer):
     )
 
     # 转换为概率
-    cancer_logits = predictions["pred_conditions"].flatten()
+    cancer_logits = predictions["pred_conditions"].flatten().cpu().numpy()
     cancer_probabilities = torch.sigmoid(torch.tensor(cancer_logits)).numpy()
+
+    # 调试信息
+    print(f"    样本数: {len(sample_ids)}, 预测数: {len(cancer_logits)}")
+    print(f"    Samples: {len(sample_ids)}, Predictions: {len(cancer_logits)}")
+
+    if len(sample_ids) != len(cancer_logits):
+        raise ValueError(f"样本数 ({len(sample_ids)}) 与预测数 ({len(cancer_logits)}) 不匹配")
 
     return pd.DataFrame({
         'sample_id': sample_ids,
@@ -462,7 +511,14 @@ def predict_clocks(inferencer, processed_dir, sample_ids, trainer):
 
     # 5种表观遗传时钟
     clock_names = ['altumage', 'dunedinpace', 'grimage2', 'hrsinchphenoage', 'pchorvath2013']
-    clock_values = predictions["pred_conditions"]
+    clock_values = predictions["pred_conditions"].cpu().numpy()
+
+    # 调试信息
+    print(f"    样本数: {len(sample_ids)}, 预测形状: {clock_values.shape}")
+    print(f"    Samples: {len(sample_ids)}, Prediction shape: {clock_values.shape}")
+
+    if len(sample_ids) != clock_values.shape[0]:
+        raise ValueError(f"样本数 ({len(sample_ids)}) 与预测数 ({clock_values.shape[0]}) 不匹配")
 
     result_dict = {'sample_id': sample_ids}
     for i, clock_name in enumerate(clock_names):
@@ -503,16 +559,24 @@ def predict_proteins(inferencer, processed_dir, sample_ids, trainer):
     )
 
     # 蛋白质预测结果 (标准化值)
-    protein_values = predictions["pred_conditions"]
+    protein_values = predictions["pred_conditions"].cpu().numpy()
+
+    # 调试信息
+    print(f"    样本数: {len(sample_ids)}, 预测形状: {protein_values.shape}")
+    print(f"    Samples: {len(sample_ids)}, Prediction shape: {protein_values.shape}")
 
     # 创建结果DataFrame (假设有多个蛋白质)
     result_dict = {'sample_id': sample_ids}
 
     # 如果是单个蛋白质
     if len(protein_values.shape) == 1:
+        if len(sample_ids) != len(protein_values):
+            raise ValueError(f"样本数 ({len(sample_ids)}) 与预测数 ({len(protein_values)}) 不匹配")
         result_dict['protein_level'] = protein_values
     else:
         # 如果是多个蛋白质
+        if len(sample_ids) != protein_values.shape[0]:
+            raise ValueError(f"样本数 ({len(sample_ids)}) 与预测数 ({protein_values.shape[0]}) 不匹配")
         for i in range(protein_values.shape[1]):
             result_dict[f'protein_{i+1}'] = protein_values[:, i]
 
