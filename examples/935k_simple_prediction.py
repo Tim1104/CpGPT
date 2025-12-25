@@ -227,7 +227,17 @@ def main():
     # ========================================================================
     print("\n[4/6] 数据预处理 (探针ID → 基因组位置 → DNA嵌入)...")
     print("[4/6] Data preprocessing (Probe ID → Genomic location → DNA embedding)...")
-    
+
+    # 清理旧的处理结果（重要！避免混入其他数据集的样本）
+    # Clean old processed results (important! Avoid mixing samples from other datasets)
+    if processed_dir.exists():
+        import shutil
+        print(f"  - 清理旧的处理结果: {processed_dir}")
+        print(f"  - Cleaning old processed results: {processed_dir}")
+        shutil.rmtree(processed_dir)
+        print("  ✓ 清理完成")
+        print("  ✓ Cleanup completed")
+
     datasaver = CpGPTDataSaver(
         data_paths=data_path,
         processed_dir=str(processed_dir)
