@@ -976,10 +976,11 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
         story = []
         styles = getSampleStyleSheet()
 
-        # 自定义样式
+        # 自定义样式（使用中文字体）
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
+            fontName=chinese_font,
             fontSize=24,
             textColor=colors.HexColor('#2C3E50'),
             spaceAfter=30,
@@ -989,9 +990,18 @@ def generate_individual_pdf_report(sample_data, output_dir, sample_id):
         heading_style = ParagraphStyle(
             'CustomHeading',
             parent=styles['Heading2'],
+            fontName=chinese_font,
             fontSize=16,
             textColor=colors.HexColor('#34495E'),
             spaceAfter=12
+        )
+
+        body_style = ParagraphStyle(
+            'CustomBody',
+            parent=styles['BodyText'],
+            fontName=chinese_font,
+            fontSize=10,
+            leading=14
         )
 
         # 标题
