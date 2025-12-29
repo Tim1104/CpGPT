@@ -51,11 +51,27 @@ PREDICT_MORTALITY = True  # 新增：死亡率预测
 
 # 其他配置
 RANDOM_SEED = 42
-MAX_INPUT_LENGTH = 30000
+# ⚠️ 重要：MAX_INPUT_LENGTH 应该与模型训练时的配置一致
+# age_cot 模型训练时使用 20000
+# clock_proxies 模型训练时使用 10000
+# proteins 模型训练时使用 10000
+# 建议使用 20000 作为通用值，或者为每个模型单独设置
+MAX_INPUT_LENGTH = 20000  # 修改为与 age_cot 模型一致
 USE_CPU = False
 
 # 年龄加速计算配置
 CHRONOLOGICAL_AGE_COLUMN = None  # 如果数据中有实际年龄，设置列名，如 "age"
+
+# ⚠️ 重要：模型输出标准化参数
+# 这些参数用于将模型的标准化输出转换回实际值
+# 如果你有训练数据的统计信息，请在这里设置
+# 格式：{'mean': 平均值, 'std': 标准差}
+# 如果设置为 None，将直接使用模型输出（可能导致预测值偏差）
+NORMALIZATION_PARAMS = {
+    'age': None,  # 例如: {'mean': 50.0, 'std': 15.0}
+    'clocks': None,  # 例如: {'altumage': {'mean': 50.0, 'std': 15.0}, ...}
+    'proteins': None,  # 例如: {'ADM': {'mean': 0.0, 'std': 1.0}, ...}
+}
 
 # ============================================================================
 # 主程序
@@ -274,6 +290,26 @@ def main():
 # 预测函数
 # ============================================================================
 
+def denormalize_predictions(values, mean=None, std=None):
+    """
+    反标准化预测值
+
+    Args:
+        values: 标准化的预测值（numpy array 或 float）
+        mean: 训练数据的均值（如果为 None，则不进行反标准化）
+        std: 训练数据的标准差（如果为 None，则不进行反标准化）
+
+    Returns:
+        反标准化后的值
+    """
+    if mean is None or std is None:
+        print("  ⚠️ 警告：未提供标准化参数，直接使用模型输出值")
+        print("  💡 提示：如果预测值看起来不合理，请设置 NORMALIZATION_PARAMS")
+        return values
+
+    return values * std + mean
+
+
 def predict_age(inferencer, processed_dir, sample_ids, trainer):
     """年龄预测"""
     config = inferencer.load_cpgpt_config(f"{str(DEPENDENCIES_DIR)}/model/config/age_cot.yaml")
@@ -283,12 +319,18 @@ def predict_age(inferencer, processed_dir, sample_ids, trainer):
         strict_load=True
     )
 
+    # ⚠️ 使用与训练时一致的 max_length
+    model_max_length = config.data.get('max_length', 20000)
+    if model_max_length != MAX_INPUT_LENGTH:
+        print(f"  ⚠️ 警告：MAX_INPUT_LENGTH ({MAX_INPUT_LENGTH}) 与模型训练时的配置 ({model_max_length}) 不一致")
+        print(f"  💡 建议：将 MAX_INPUT_LENGTH 设置为 {model_max_length}")
+
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
         dependencies_dir=str(DEPENDENCIES_DIR),
         batch_size=1,
         num_workers=0,
-        max_length=MAX_INPUT_LENGTH,
+        max_length=model_max_length,  # 使用模型配置的值
         dna_llm=config.data.dna_llm,
         dna_context_len=config.data.dna_context_len,
         sorting_strategy=config.data.sorting_strategy,
@@ -303,6 +345,15 @@ def predict_age(inferencer, processed_dir, sample_ids, trainer):
     )
 
     pred_values = predictions["pred_conditions"].flatten().cpu().numpy()
+
+    # 反标准化预测值
+    if NORMALIZATION_PARAMS['age'] is not None:
+        pred_values = denormalize_predictions(
+            pred_values,
+            mean=NORMALIZATION_PARAMS['age'].get('mean'),
+            std=NORMALIZATION_PARAMS['age'].get('std')
+        )
+
     return pd.DataFrame({'sample_id': sample_ids, 'predicted_age': pred_values})
 
 
@@ -354,12 +405,18 @@ def predict_clocks(inferencer, processed_dir, sample_ids, trainer):
         strict_load=True
     )
 
+    # ⚠️ 使用与训练时一致的 max_length
+    model_max_length = config.data.get('max_length', 10000)
+    if model_max_length != MAX_INPUT_LENGTH:
+        print(f"  ⚠️ 警告：MAX_INPUT_LENGTH ({MAX_INPUT_LENGTH}) 与 clock_proxies 模型训练时的配置 ({model_max_length}) 不一致")
+        print(f"  💡 建议：对于 clock_proxies，使用 max_length={model_max_length}")
+
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
         dependencies_dir=str(DEPENDENCIES_DIR),
         batch_size=1,
         num_workers=0,
-        max_length=MAX_INPUT_LENGTH,
+        max_length=model_max_length,  # 使用模型配置的值
         dna_llm=config.data.dna_llm,
         dna_context_len=config.data.dna_context_len,
         sorting_strategy=config.data.sorting_strategy,
@@ -378,13 +435,30 @@ def predict_clocks(inferencer, processed_dir, sample_ids, trainer):
 
     result_dict = {'sample_id': sample_ids}
     for i, clock_name in enumerate(clock_names):
-        result_dict[clock_name] = clock_values[:, i]
+        # 反标准化每个时钟的预测值
+        values = clock_values[:, i]
+        if NORMALIZATION_PARAMS['clocks'] is not None and clock_name in NORMALIZATION_PARAMS['clocks']:
+            values = denormalize_predictions(
+                values,
+                mean=NORMALIZATION_PARAMS['clocks'][clock_name].get('mean'),
+                std=NORMALIZATION_PARAMS['clocks'][clock_name].get('std')
+            )
+        result_dict[clock_name] = values
 
     return pd.DataFrame(result_dict)
 
 
 def predict_proteins(inferencer, processed_dir, sample_ids, trainer):
-    """蛋白质预测"""
+    """
+    蛋白质预测
+
+    注意：模型预测 322 种血浆蛋白质的标准化值（均值=0，标准差=1）
+    - 负值：低于平均水平（通常表示更健康）
+    - 0：平均水平
+    - 正值：高于平均水平（可能表示炎症或疾病风险）
+
+    这些标准化值可以直接用于风险评估和器官健康评分。
+    """
     config = inferencer.load_cpgpt_config(f"{str(DEPENDENCIES_DIR)}/model/config/proteins.yaml")
     model = inferencer.load_cpgpt_model(
         config,
@@ -392,12 +466,18 @@ def predict_proteins(inferencer, processed_dir, sample_ids, trainer):
         strict_load=True
     )
 
+    # ⚠️ 使用与训练时一致的 max_length
+    model_max_length = config.data.get('max_length', 10000)
+    if model_max_length != MAX_INPUT_LENGTH:
+        print(f"  ⚠️ 警告：MAX_INPUT_LENGTH ({MAX_INPUT_LENGTH}) 与 proteins 模型训练时的配置 ({model_max_length}) 不一致")
+        print(f"  💡 建议：对于 proteins，使用 max_length={model_max_length}")
+
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
         dependencies_dir=str(DEPENDENCIES_DIR),
         batch_size=1,
         num_workers=0,
-        max_length=MAX_INPUT_LENGTH,
+        max_length=model_max_length,  # 使用模型配置的值
         dna_llm=config.data.dna_llm,
         dna_context_len=config.data.dna_context_len,
         sorting_strategy=config.data.sorting_strategy,
@@ -418,7 +498,14 @@ def predict_proteins(inferencer, processed_dir, sample_ids, trainer):
 
     result_dict = {'sample_id': sample_ids}
     num_proteins = min(protein_values.shape[1], len(protein_names))
+
+    print(f"  ℹ️ 预测了 {num_proteins} 种蛋白质的标准化值")
+    print(f"  ℹ️ 标准化值范围：均值=0，标准差=1")
+    print(f"  ℹ️ 典型范围：[-3, +3]（99.7% 的值在此范围内）")
+
     for i in range(num_proteins):
+        # 蛋白质值保持标准化（不需要反标准化）
+        # 标准化值可以直接用于风险评估
         result_dict[protein_names[i]] = protein_values[:, i]
 
     return pd.DataFrame(result_dict)
