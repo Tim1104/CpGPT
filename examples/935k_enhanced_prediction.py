@@ -322,8 +322,9 @@ def predict_age(inferencer, processed_dir, sample_ids, trainer):
     # ⚠️ 使用与训练时一致的 max_length
     model_max_length = config.data.get('max_length', 20000)
     if model_max_length != MAX_INPUT_LENGTH:
-        print(f"  ⚠️ 警告：MAX_INPUT_LENGTH ({MAX_INPUT_LENGTH}) 与模型训练时的配置 ({model_max_length}) 不一致")
-        print(f"  💡 建议：将 MAX_INPUT_LENGTH 设置为 {model_max_length}")
+        print(f"  ℹ️ 注意：自动使用 age_cot 模型的 max_length={model_max_length}（全局设置为 {MAX_INPUT_LENGTH}）")
+    else:
+        print(f"  ✓ 使用 max_length={model_max_length}")
 
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
@@ -366,12 +367,19 @@ def predict_cancer(inferencer, processed_dir, sample_ids, trainer):
         strict_load=True
     )
 
+    # ⚠️ 使用与训练时一致的 max_length
+    model_max_length = config.data.get('max_length', 10000)
+    if model_max_length != MAX_INPUT_LENGTH:
+        print(f"  ℹ️ 注意：自动使用 cancer 模型的 max_length={model_max_length}（全局设置为 {MAX_INPUT_LENGTH}）")
+    else:
+        print(f"  ✓ 使用 max_length={model_max_length}")
+
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
         dependencies_dir=str(DEPENDENCIES_DIR),
         batch_size=1,
         num_workers=0,
-        max_length=MAX_INPUT_LENGTH,
+        max_length=model_max_length,  # 使用模型配置的值
         dna_llm=config.data.dna_llm,
         dna_context_len=config.data.dna_context_len,
         sorting_strategy=config.data.sorting_strategy,
@@ -408,8 +416,9 @@ def predict_clocks(inferencer, processed_dir, sample_ids, trainer):
     # ⚠️ 使用与训练时一致的 max_length
     model_max_length = config.data.get('max_length', 10000)
     if model_max_length != MAX_INPUT_LENGTH:
-        print(f"  ⚠️ 警告：MAX_INPUT_LENGTH ({MAX_INPUT_LENGTH}) 与 clock_proxies 模型训练时的配置 ({model_max_length}) 不一致")
-        print(f"  💡 建议：对于 clock_proxies，使用 max_length={model_max_length}")
+        print(f"  ℹ️ 注意：自动使用 clock_proxies 模型的 max_length={model_max_length}（全局设置为 {MAX_INPUT_LENGTH}）")
+    else:
+        print(f"  ✓ 使用 max_length={model_max_length}")
 
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
@@ -469,8 +478,9 @@ def predict_proteins(inferencer, processed_dir, sample_ids, trainer):
     # ⚠️ 使用与训练时一致的 max_length
     model_max_length = config.data.get('max_length', 10000)
     if model_max_length != MAX_INPUT_LENGTH:
-        print(f"  ⚠️ 警告：MAX_INPUT_LENGTH ({MAX_INPUT_LENGTH}) 与 proteins 模型训练时的配置 ({model_max_length}) 不一致")
-        print(f"  💡 建议：对于 proteins，使用 max_length={model_max_length}")
+        print(f"  ℹ️ 注意：自动使用 proteins 模型的 max_length={model_max_length}（全局设置为 {MAX_INPUT_LENGTH}）")
+    else:
+        print(f"  ✓ 使用 max_length={model_max_length}")
 
     datamodule = CpGPTDataModule(
         predict_dir=processed_dir,
