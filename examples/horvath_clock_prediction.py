@@ -21,14 +21,15 @@ import seaborn as sns
 # ============================================================================
 # 配置
 # ============================================================================
-
+SCRIPT_DIR = Path(__file__).parent.resolve()
+PROJECT_ROOT = SCRIPT_DIR.parent
 # 数据路径
-DATA_FILE = "data/Sample1107.arrow"  # 你的935k数据文件
-METADATA_FILE = "data/sample_metadata.csv"  # 元数据（包含实际年龄）
-CPGPT_PREDICTIONS = "results/935k_enhanced_predictions/age_predictions.csv"  # CpGPT预测结果
+DATA_FILE = SCRIPT_DIR / "data" / "Sample1107.arrow"  # 你的935k数据文件
+METADATA_FILE =  SCRIPT_DIR / "data" / "sample_metadata.csv"  # 元数据（包含实际年龄）
+CPGPT_PREDICTIONS = SCRIPT_DIR /"results"/"935k_enhanced_predictions"/"age_predictions.csv"  # CpGPT预测结果
 
 # 输出路径
-OUTPUT_DIR = Path("results/horvath_clock_predictions")
+OUTPUT_DIR = SCRIPT_DIR / "results" / "horvath_clock_predictions"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ============================================================================
