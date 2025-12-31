@@ -102,15 +102,26 @@ def calculate_normalization_params(metadata, predictions_df):
     # 优化：找到最佳的 mean 和 std
     def loss(params):
         mean, std = params
+        if std <= 0:  # 确保std为正数
+            return 1e10
         denormalized = predicted_values * std + mean
         return np.mean((denormalized - actual_ages) ** 2)
-    
+
     # 初始猜测
-    initial_guess = [np.mean(actual_ages), np.std(actual_ages)]
-    
-    # 优化
-    result = minimize(loss, x0=initial_guess, method='Nelder-Mead')
+    initial_guess = [np.mean(actual_ages), max(np.std(actual_ages), 1.0)]
+
+    # 优化，添加约束确保std > 0
+    from scipy.optimize import Bounds
+    bounds = Bounds([0, 0.1], [200, 50])  # mean: 0-200, std: 0.1-50
+    result = minimize(loss, x0=initial_guess, method='L-BFGS-B', bounds=bounds)
     mean, std = result.x
+
+    # 确保std为正数
+    if std <= 0:
+        print(f"  ⚠️ 警告：计算出的std为负数或零，使用绝对值")
+        std = abs(std)
+        if std < 0.1:
+            std = np.std(actual_ages)
     
     # 计算拟合质量
     denormalized = predicted_values * std + mean

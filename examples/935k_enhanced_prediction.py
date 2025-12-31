@@ -67,7 +67,11 @@ CHRONOLOGICAL_AGE_COLUMN = None  # 如果数据中有实际年龄，设置列名
 # 如果你有训练数据的统计信息，请在这里设置
 # 格式：{'mean': 平均值, 'std': 标准差}
 # 如果设置为 None，将直接使用模型输出（可能导致预测值偏差）
-NORMALIZATION_PARAMS = {'age': {'mean': np.float64(110.88228106177287), 'std': np.float64(-1.0528510377061764)}, 'clocks': {'altumage': {'mean': np.float64(110.88228106177287), 'std': np.float64(-1.0528510377061764)}, 'dunedinpace': {'mean': 1.0, 'std': 0.1}, 'grimage2': {'mean': np.float64(110.88228106177287), 'std': np.float64(-1.0528510377061764)}, 'hrsinchphenoage': {'mean': np.float64(110.88228106177287), 'std': np.float64(-1.0528510377061764)}, 'pchorvath2013': {'mean': np.float64(110.88228106177287), 'std': np.float64(-1.0528510377061764)}}, 'proteins': None}
+NORMALIZATION_PARAMS = {
+    'age': None,  # 暂时设为None，等计算正确的参数
+    'clocks': None,
+    'proteins': None,
+}
 
 # ============================================================================
 # 主程序
