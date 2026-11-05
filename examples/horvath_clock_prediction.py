@@ -89,12 +89,15 @@ def main():
     print("\n[4/6] 运行多个甲基化时钟...")
     print("  ℹ️ 这可能需要几分钟...")
 
-    # 定义要运行的时钟（只使用基于DNA甲基化的时钟）
-    # 注意：phenoage和grimage需要临床数据，不能只用甲基化数据
-    clocks_to_run = ['horvath2013', 'skinandblood']
+    # 定义要运行的时钟（只使用稳定的基于DNA甲基化的时钟）
+    # 注意：
+    # - phenoage需要临床数据（albumin, creatinine等），不能只用甲基化数据
+    # - pcphenoage和pcgrimage下载可能不稳定，暂时不使用
+    clocks_to_run = ['horvath2013', 'skinandblood', 'grimage']
     clock_display_names = {
         'horvath2013': 'Horvath Clock (2013)',
-        'skinandblood': 'Skin & Blood Clock'
+        'skinandblood': 'Skin & Blood Clock',
+        'grimage': 'GrimAge'
     }
 
     try:
@@ -237,7 +240,8 @@ def create_visualizations(df, clocks_to_run, clock_display_names):
     # 定义时钟列表和颜色
     clock_colors = {
         'horvath2013': 'blue',
-        'skinandblood': 'brown'
+        'skinandblood': 'brown',
+        'grimage': 'purple'
     }
 
     # 图1：所有时钟 vs 实际年龄（如果有）

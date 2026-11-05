@@ -49,6 +49,9 @@ PREDICT_CLOCKS = True
 PREDICT_PROTEINS = True
 PREDICT_MORTALITY = True  # 新增：死亡率预测
 
+# Systems Age 结果（examples/systems_age/run.sh 生成）；文件不存在则跳过
+SYSTEMS_AGE_CSV = SCRIPT_DIR / "systems_age" / "systems_age_results.csv"
+
 # 其他配置
 RANDOM_SEED = 42
 # ⚠️ 重要：MAX_INPUT_LENGTH 应该与模型训练时的配置一致
@@ -261,6 +264,16 @@ def main():
         organ_health_scores = calculate_organ_health_scores(proteins_results)
         combined = combined.merge(organ_health_scores, on='sample_id', how='left')
         organ_health_scores.to_csv(f"{str(RESULTS_DIR)}/organ_health_scores.csv", index=False)
+
+    # 6.5 Systems Age（methylCIPHER，外部 R 流程生成）
+    if SYSTEMS_AGE_CSV.exists():
+        print("\n  [6.5] 合并 Systems Age 结果...")
+        sa = pd.read_csv(SYSTEMS_AGE_CSV).drop(columns=['file'], errors='ignore')
+        sa['sample_id'] = sa['sample'].astype(str).str.replace(r'\.AVG_Beta$', '', regex=True)
+        sa = sa.drop(columns=['sample']).add_prefix('sysage_').rename(columns={'sysage_sample_id': 'sample_id'})
+        combined['sample_id'] = combined['sample_id'].astype(str)
+        combined = combined.merge(sa, on='sample_id', how='left')
+        sa.to_csv(f"{str(RESULTS_DIR)}/systems_age_scores.csv", index=False)
 
     # 保存合并结果
     combined.to_csv(f"{str(RESULTS_DIR)}/combined_predictions.csv", index=False)
